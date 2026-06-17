@@ -9,8 +9,19 @@ export const listPregnancies = async (req: Request, res: Response) => {
     return res.status(400).json({ message: "Invalid highRisk." });
   }
 
+  let whereClause: any = {};
+  if (posyanduId) {
+    whereClause.OR = [
+      { posyanduId },
+      { posyanduId: null }
+    ];
+  }
+  if (highRiskValue !== undefined) {
+    whereClause.highRisk = highRiskValue;
+  }
+
   const pregnancies = await prisma.pregnancy.findMany({
-    where: { posyanduId, highRisk: highRiskValue },
+    where: whereClause,
     orderBy: { createdAt: "desc" }
   });
 
@@ -75,6 +86,15 @@ export const createPregnancy = async (req: Request, res: Response) => {
     return res.status(400).json({ message: "Invalid highRisk." });
   }
 
+  // Resolve posyanduId from logged-in user if missing
+  let resolvedPosyanduId = posyanduId;
+  if (!resolvedPosyanduId && (req as any).user?.id) {
+    const loggedInUser = await prisma.user.findUnique({ where: { id: (req as any).user.id } });
+    if (loggedInUser && loggedInUser.posyanduId) {
+      resolvedPosyanduId = loggedInUser.posyanduId;
+    }
+  }
+
   const pregnancy = await prisma.pregnancy.create({
     data: {
       name,
@@ -85,7 +105,7 @@ export const createPregnancy = async (req: Request, res: Response) => {
       bloodPressure,
       weight: weightValue,
       highRisk: highRiskValue,
-      posyanduId
+      posyanduId: resolvedPosyanduId
     }
   });
 
@@ -141,6 +161,15 @@ export const updatePregnancy = async (req: Request, res: Response) => {
     return res.status(400).json({ message: "Invalid highRisk." });
   }
 
+  // Resolve posyanduId from logged-in user if missing
+  let resolvedPosyanduId = posyanduId;
+  if (!resolvedPosyanduId && (req as any).user?.id) {
+    const loggedInUser = await prisma.user.findUnique({ where: { id: (req as any).user.id } });
+    if (loggedInUser && loggedInUser.posyanduId) {
+      resolvedPosyanduId = loggedInUser.posyanduId;
+    }
+  }
+
   const pregnancy = await prisma.pregnancy.update({
     where: { id },
     data: {
@@ -152,7 +181,7 @@ export const updatePregnancy = async (req: Request, res: Response) => {
       bloodPressure,
       weight: weightValue,
       highRisk: highRiskValue,
-      posyanduId
+      posyanduId: resolvedPosyanduId
     }
   });
 

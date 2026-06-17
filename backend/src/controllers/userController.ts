@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import bcrypt from "bcryptjs";
 import { prisma } from "../db/prisma";
+import { supabaseAdmin } from "../db/supabase";
 
 const userSelect = {
   id: true,
@@ -62,14 +63,42 @@ export const createUser = async (req: Request, res: Response) => {
     }
   }
 
-  const passwordHash = await bcrypt.hash(password, 10);
-
-  const user = await prisma.user.create({
-    data: { email, passwordHash, name, role, nik, phone, wilayah, posyanduId },
-    select: userSelect
+  // 1. Create user in Supabase Auth via Admin API
+  const { data, error } = await supabaseAdmin.auth.admin.createUser({
+    email,
+    password,
+    email_confirm: true
   });
 
-  return res.status(201).json({ user });
+  if (error || !data?.user) {
+    return res.status(500).json({ message: error?.message || "Failed to create user in Supabase Auth." });
+  }
+
+  const supabaseUser = data.user;
+
+  // 2. Create profile in database matching the Supabase UID
+  try {
+    const user = await prisma.user.create({
+      data: {
+        id: supabaseUser.id, // UID from Supabase Auth!
+        email,
+        passwordHash: "", // Not needed as Supabase Auth validates it
+        name,
+        role: role || "orangtua",
+        nik: typeof nik === "string" && nik.trim() ? nik : undefined,
+        phone: typeof phone === "string" && phone.trim() ? phone : undefined,
+        wilayah: typeof wilayah === "string" && wilayah.trim() ? wilayah : undefined,
+        posyanduId: typeof posyanduId === "string" && posyanduId.trim() ? posyanduId : undefined,
+      },
+      select: userSelect
+    });
+
+    return res.status(201).json({ user });
+  } catch (dbError: any) {
+    // Rollback Supabase user if database sync fails
+    await supabaseAdmin.auth.admin.deleteUser(supabaseUser.id);
+    return res.status(500).json({ message: dbError.message || "Failed to create user profile in database." });
+  }
 };
 
 export const updateUser = async (req: Request, res: Response) => {
@@ -95,7 +124,23 @@ export const updateUser = async (req: Request, res: Response) => {
     }
   }
 
-  const passwordHash = password ? await bcrypt.hash(password, 10) : undefined;
+  const shouldUpdatePassword = password && password.trim() && !password.includes("•") && !password.includes("·");
+  
+  if (email && email !== existing.email) {
+    const { error } = await supabaseAdmin.auth.admin.updateUserById(id, { email });
+    if (error) {
+      return res.status(500).json({ message: error.message || "Failed to update email in Supabase Auth." });
+    }
+  }
+
+  if (shouldUpdatePassword) {
+    const { error } = await supabaseAdmin.auth.admin.updateUserById(id, { password });
+    if (error) {
+      return res.status(500).json({ message: error.message || "Failed to update password in Supabase Auth." });
+    }
+  }
+
+  const passwordHash = shouldUpdatePassword ? await bcrypt.hash(password, 10) : undefined;
 
   const user = await prisma.user.update({
     where: { id },

@@ -13,7 +13,25 @@ import referralsRouter from "./routes/referrals";
 export const createApp = () => {
   const app = express();
 
-  app.use(cors({ origin: env.corsOrigin, credentials: true }));
+  app.use(
+    cors({
+      origin: (origin, callback) => {
+        if (!origin) {
+          callback(null, true);
+          return;
+        }
+
+        const isAllowedLocalhost = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
+        if (origin === env.corsOrigin || isAllowedLocalhost) {
+          callback(null, true);
+          return;
+        }
+
+        callback(new Error(`CORS blocked for origin: ${origin}`));
+      },
+      credentials: true,
+    })
+  );
   app.use(express.json());
 
   app.use("/health", healthRouter);

@@ -1,24 +1,37 @@
-import { createContext, useContext, useState, useEffect } from "react";
+import { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { defaultCredentials } from "../data/dummyData";
 
 const AuthContext = createContext(null);
 
-export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
+const apiBaseUrl = import.meta.env.VITE_API_URL || "http://localhost:4000";
 
-  // Load user from localStorage on mount
-  useEffect(() => {
-    const storedUser = localStorage.getItem("user");
-    if (storedUser) {
-      try {
-        setUser(JSON.parse(storedUser));
-      } catch (error) {
-        console.error("Failed to parse stored user:", error);
-        localStorage.removeItem("user");
-      }
-    }
-    setLoading(false);
+const readStoredUser = () => {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  const storedUser = localStorage.getItem("user");
+  if (!storedUser) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(storedUser);
+  } catch (error) {
+    console.error("Failed to parse stored user:", error);
+    localStorage.removeItem("user");
+    return null;
+  }
+};
+
+export function AuthProvider({ children }) {
+  const [user, setUser] = useState(() => readStoredUser());
+  const loading = false;
+
+  const logout = useCallback(() => {
+    setUser(null);
+    localStorage.removeItem("user");
+    localStorage.removeItem("token");
   }, []);
 
   // Session timeout: 30 minutes
@@ -28,10 +41,8 @@ export function AuthProvider({ children }) {
     const SESSION_TIMEOUT = 30 * 60 * 1000; // 30 minutes
     
     let timeoutId;
-    let lastActivityTime = Date.now();
 
     const resetTimeout = () => {
-      lastActivityTime = Date.now();
       clearTimeout(timeoutId);
       
       timeoutId = setTimeout(() => {
@@ -56,52 +67,106 @@ export function AuthProvider({ children }) {
         document.removeEventListener(event, resetTimeout, true);
       });
     };
-  }, [user]);
+  }, [user, logout]);
 
-  const login = (role, email, password) => {
-    const credentials = defaultCredentials[role];
-    
-    if (!credentials) {
-      return false;
-    }
+  // Verify token on mount/startup
+  useEffect(() => {
+    const verifySession = async () => {
+      const token = localStorage.getItem("token");
+      if (!token) return;
 
-    // Check email and password
-    if (credentials.email === email && credentials.password === password) {
-      // ✅ SECURITY FIX: Don't store password or email in localStorage
-      const userData = {
-        id: credentials.id,
-        name: credentials.name,
-        role: credentials.role,
-        wilayah: credentials.wilayah,
-        ...(credentials.posyandu && { posyandu: credentials.posyandu })
-      };
-      
-      setUser(userData);
-      localStorage.setItem("user", JSON.stringify(userData));
-      return true;
-    }
+      try {
+        const response = await fetch(`${apiBaseUrl}/auth/me`, {
+          headers: {
+            "Authorization": `Bearer ${token}`
+          }
+        });
 
-    return false;
-  };
-
-  const register = (userData) => {
-    // This is a placeholder for future backend integration
-    // For now, we'll just set the user as logged in
-    const newUser = {
-      id: Math.random(),
-      ...userData,
-      role: userData.role || "orangtua"
+        if (response.status === 401 || response.status === 404) {
+          console.warn("🔐 Session is invalid or expired. Logging out...");
+          logout();
+        } else {
+          const data = await response.json();
+          if (data?.user) {
+            setUser(data.user);
+            localStorage.setItem("user", JSON.stringify(data.user));
+          }
+        }
+      } catch (error) {
+        console.error("Error verifying session token:", error);
+      }
     };
-    
-    setUser(newUser);
-    localStorage.setItem("user", JSON.stringify(newUser));
-    return true;
-  };
 
-  const logout = () => {
-    setUser(null);
-    localStorage.removeItem("user");
-  };
+    verifySession();
+  }, [logout]);
+
+  const login = useCallback(async (role, email, password) => {
+    try {
+      const response = await fetch(`${apiBaseUrl}/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ email, password }),
+      });
+
+      const data = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        throw new Error(data?.message || "Kredensial tidak valid.");
+      }
+
+      if (data?.user) {
+        setUser(data.user);
+        localStorage.setItem("user", JSON.stringify(data.user));
+        if (data.token) {
+          localStorage.setItem("token", data.token);
+        }
+        return data.user;
+      }
+      return null;
+    } catch (error) {
+      console.error("Backend login error:", error);
+      throw error;
+    }
+  }, []);
+
+  const register = useCallback(async (userData) => {
+    try {
+      const response = await fetch(`${apiBaseUrl}/auth/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          name: userData.name,
+          email: userData.email,
+          password: userData.password,
+          role: userData.role || "orangtua",
+          nik: userData.nik,
+          phone: userData.phone,
+          wilayah: userData.wilayah,
+        }),
+      });
+
+      const data = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(data?.message || "Pendaftaran gagal.");
+      }
+
+      if (data?.user) {
+        setUser(data.user);
+        localStorage.setItem("user", JSON.stringify(data.user));
+      }
+
+      if (data?.token) {
+        localStorage.setItem("token", data.token);
+      }
+
+      return data?.user ?? null;
+    } catch (error) {
+      console.error("Registration failed:", error);
+      throw error;
+    }
+  }, []);
 
   const value = {
     user,

@@ -1,7 +1,8 @@
-import React, { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useNotification } from "../context/NotificationContext";
+import { api } from "../utils/api";
 import ModalForm from "./ModalForm";
 import EmptyState from "../components/EmptyState";
 import logo from "../assets/POSCO_LOGO_KITA.png";
@@ -34,30 +35,16 @@ const dummyNotifications = [
   { id: 3, message: "User baru terdaftar: Rina Orangtua", time: "6 jam lalu", type: "success" },
 ];
 
-const trendData = [
-  { month: "Jan", posyandu: 40, kunjungan: 120, anak: 240, stunting: 24 },
-  { month: "Feb", posyandu: 45, kunjungan: 130, anak: 260, stunting: 26 },
-  { month: "Mar", posyandu: 48, kunjungan: 145, anak: 280, stunting: 28 },
-  { month: "Apr", posyandu: 50, kunjungan: 155, anak: 300, stunting: 30 },
-  { month: "May", posyandu: 52, kunjungan: 165, anak: 320, stunting: 32 },
-  { month: "Jun", posyandu: 55, kunjungan: 180, anak: 350, stunting: 35 },
-];
-
-const wilayahData = [
-  { wilayah: "Padang Utara", total: 85, normal: 65, risiko: 15, stunting: 5 },
-  { wilayah: "Padang Timur", total: 92, normal: 70, risiko: 18, stunting: 4 },
-  { wilayah: "Padang Selatan", total: 78, normal: 55, risiko: 18, stunting: 5 },
-  { wilayah: "Padang Barat", total: 88, normal: 68, risiko: 16, stunting: 4 },
-];
+// Removed global static trendData and dummy data declarations to use database values
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
-  const { success, error, warning } = useNotification();
+  const { success, error } = useNotification();
   const [activePage, setActivePage] = useState("dashboard");
-  const [users, setUsers] = useState(dummyUsers);
-  const [posyandus, setPosyandus] = useState(dummyPosyandu);
-  const [children, setChildren] = useState(dummyChildren);
+  const [users, setUsers] = useState([]);
+  const [posyandus, setPosyandus] = useState([]);
+  const [children, setChildren] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [modalType, setModalType] = useState(""); // "user", "posyandu", "child"
   const [editingId, setEditingId] = useState(null);
@@ -66,6 +53,107 @@ export default function AdminDashboard() {
   const [formData, setFormData] = useState({});
   const [editingChildStatus, setEditingChildStatus] = useState(null);
   const [newStatus, setNewStatus] = useState("");
+  const [loadingData, setLoadingData] = useState(true);
+  const [sessions, setSessions] = useState([]);
+
+  const wilayahData = useMemo(() => {
+    const map = {};
+    children.forEach(c => {
+      const w = c.wilayah || "Lainnya";
+      if (!map[w]) {
+        map[w] = { wilayah: w, total: 0, normal: 0, risiko: 0, stunting: 0 };
+      }
+      map[w].total += 1;
+      const status = (c.status || "").trim().toLowerCase();
+      if (status === "normal") {
+        map[w].normal += 1;
+      } else if (status === "risiko" || status === "berisiko") {
+        map[w].risiko += 1;
+      } else if (status === "stunting") {
+        map[w].stunting += 1;
+      } else {
+        map[w].normal += 1;
+      }
+    });
+    const list = Object.values(map);
+    return list.length > 0 ? list : [
+      { wilayah: "Belum Ada Data", total: 1, normal: 1, risiko: 0, stunting: 0 }
+    ];
+  }, [children]);
+
+  const compositionData = useMemo(() => {
+    const total = children.length || 1;
+    let normal = 0;
+    let risiko = 0;
+    let stunting = 0;
+
+    children.forEach(c => {
+      const status = (c.status || "").trim().toLowerCase();
+      if (status === "normal") normal++;
+      else if (status === "risiko" || status === "berisiko") risiko++;
+      else if (status === "stunting") stunting++;
+      else normal++;
+    });
+
+    return {
+      normal: Math.round((normal / total) * 100),
+      risiko: Math.round((risiko / total) * 100),
+      stunting: Math.round((stunting / total) * 100),
+    };
+  }, [children]);
+
+  const loadAllData = useCallback(async () => {
+    setLoadingData(true);
+    try {
+      const posList = await api.getPosyandus();
+      setPosyandus(posList.map(p => ({
+        id: p.id,
+        name: p.name,
+        kecamatan: p.kecamatan,
+        kelurahan: p.kelurahan,
+        kaderName: p.kaderName || "",
+        status: p.active ? "Aktif" : "Nonaktif"
+      })));
+      
+      const userList = await api.getUsers();
+      setUsers(userList.map(u => ({
+        id: u.id,
+        name: u.name,
+        email: u.email,
+        role: u.role,
+        wilayah: u.wilayah,
+        posyanduId: u.posyanduId || "",
+        nik: u.nik || "",
+        phone: u.phone || "",
+        status: u.status
+      })));
+      
+      const childList = await api.getChildren({}, posList);
+      setChildren(childList.map(c => ({
+        id: c.id,
+        name: c.nama,
+        mother: c.namaIbu,
+        wilayah: c.posyandu,
+        posyanduId: c.posyanduId,
+        status: c.statusGizi,
+        bb: c.beratBadan,
+        tb: c.tinggiBadan,
+        original: c
+      })));
+
+      const sessList = await api.getSessions({}, posList);
+      setSessions(sessList);
+    } catch (err) {
+      console.error("Failed to load data:", err);
+      error("⚠️ Gagal memuat data dari server");
+    } finally {
+      setLoadingData(false);
+    }
+  }, [error]);
+
+  useEffect(() => {
+    loadAllData();
+  }, [loadAllData]);
 
   // useCallback untuk form handler - tidak akan recreate setiap render
   const handleFormChange = useCallback((field, value) => {
@@ -83,6 +171,106 @@ export default function AdminDashboard() {
     });
   }, [searchQuery, filterStatus, children]);
 
+  const trendData = useMemo(() => {
+    const months = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agt", "Sep", "Okt", "Nov", "Des"];
+    const currentMonth = new Date().getMonth();
+    
+    // Get last 6 months indices
+    const last6MonthsIndices = [];
+    for (let i = 5; i >= 0; i--) {
+      const idx = (currentMonth - i + 12) % 12;
+      last6MonthsIndices.push(idx);
+    }
+
+    const data = last6MonthsIndices.map(idx => ({ month: months[idx], index: idx, anak: 0, stunting: 0, kunjungan: 0 }));
+
+    children.forEach(c => {
+      if (c.original?.tanggalLahir) {
+        const d = new Date(c.original.tanggalLahir);
+        const mIdx = d.getMonth();
+        const dataObj = data.find(item => item.index === mIdx);
+        if (dataObj) {
+          dataObj.anak += 1;
+          if (c.status === "Stunting") {
+            dataObj.stunting += 1;
+          }
+        }
+      }
+    });
+
+    sessions.forEach(s => {
+      if (s.tanggal) {
+        const d = new Date(s.tanggal);
+        const mIdx = d.getMonth();
+        const dataObj = data.find(item => item.index === mIdx);
+        if (dataObj) {
+          dataObj.kunjungan += 1;
+        }
+      }
+    });
+
+    return data;
+  }, [children, sessions]);
+
+  const getRoleStyle = (role) => {
+    switch(role) {
+      case "admin":
+        return { background: "#E8F5E9", color: "#2E7D32", padding: "4px 8px", borderRadius: "6px", fontSize: "11px", fontWeight: "700", display: "inline-block" };
+      case "kader":
+        return { background: "#E3F2FD", color: "#1565C0", padding: "4px 8px", borderRadius: "6px", fontSize: "11px", fontWeight: "700", display: "inline-block" };
+      case "verifikator":
+        return { background: "#EDE7F6", color: "#5E35B1", padding: "4px 8px", borderRadius: "6px", fontSize: "11px", fontWeight: "700", display: "inline-block" };
+      case "kader_pending":
+        return { background: "#FFF3E0", color: "#E65100", padding: "4px 8px", borderRadius: "6px", fontSize: "11px", fontWeight: "700", display: "inline-block" };
+      case "orangtua":
+        return { background: "#F3E5F5", color: "#6A1B9A", padding: "4px 8px", borderRadius: "6px", fontSize: "11px", fontWeight: "700", display: "inline-block" };
+      default:
+        return { background: "#ECEFF1", color: "#37474F", padding: "4px 8px", borderRadius: "6px", fontSize: "11px", fontWeight: "700", display: "inline-block" };
+    }
+  };
+
+  const getRoleLabel = (role) => {
+    switch(role) {
+      case "admin": return "ADMIN";
+      case "kader": return "KADER";
+      case "verifikator": return "VERIFIKATOR";
+      case "kader_pending": return "PENDING";
+      case "orangtua": return "ORANG TUA";
+      default: return role?.toUpperCase() || "";
+    }
+  };
+
+  const getStatusStyle = (status) => {
+    if (status === "Aktif" || status === "active" || status === "Normal") {
+      return { background: "#E8F5E9", color: "#2E7D32", padding: "4px 8px", borderRadius: "6px", fontSize: "11px", fontWeight: "700", display: "inline-block" };
+    }
+    return { background: "#FFF8E1", color: "#F57F17", padding: "4px 8px", borderRadius: "6px", fontSize: "11px", fontWeight: "700", display: "inline-block" };
+  };
+
+  const handleVerifyKader = async (userId) => {
+    try {
+      const userToVerify = users.find(u => u.id === userId);
+      if (!userToVerify) return;
+
+      await api.updateUser(userId, {
+        name: userToVerify.name,
+        email: userToVerify.email,
+        role: "kader",
+        wilayah: userToVerify.wilayah
+      });
+
+      setUsers(prev => prev.map((u) => (u.id === userId ? {
+        ...u,
+        role: "kader",
+        status: "Aktif"
+      } : u)));
+
+      success("✓ Kader berhasil diverifikasi dan aktif");
+    } catch (err) {
+      error("⚠️ Gagal memverifikasi kader: " + err.message);
+    }
+  };
+
   // Handlers
   const handleAddClick = (type) => {
     setModalType(type);
@@ -98,48 +286,185 @@ export default function AdminDashboard() {
     setShowModal(true);
   };
 
-  const handleDeleteClick = (type, id) => {
+  const handleDeleteClick = async (type, id) => {
     if (window.confirm("Yakin ingin menghapus data ini?")) {
-      if (type === "user") {
-        setUsers(users.filter((u) => u.id !== id));
-        success("✓ User berhasil dihapus");
-      }
-      if (type === "posyandu") {
-        setPosyandus(posyandus.filter((p) => p.id !== id));
-        success("✓ Posyandu berhasil dihapus");
-      }
-      if (type === "child") {
-        setChildren(children.filter((c) => c.id !== id));
-        success("✓ Data anak berhasil dihapus");
+      try {
+        if (type === "user") {
+          await api.deleteUser(id);
+          setUsers(users.filter((u) => u.id !== id));
+          success("✓ User berhasil dihapus");
+        }
+        if (type === "posyandu") {
+          await api.deletePosyandu(id);
+          setPosyandus(posyandus.filter((p) => p.id !== id));
+          success("✓ Posyandu berhasil dihapus");
+        }
+        if (type === "child") {
+          await api.deleteChild(id);
+          setChildren(children.filter((c) => c.id !== id));
+          success("✓ Data anak berhasil dihapus");
+        }
+      } catch (err) {
+        error("⚠️ Gagal menghapus data: " + err.message);
       }
     }
   };
 
-  const handleSaveClick = () => {
+  const handleSaveClick = async () => {
     if (!formData.name) {
       error("⚠️ Nama harus diisi");
       return;
     }
 
-    if (editingId) {
-      if (modalType === "user")
-        setUsers(users.map((u) => (u.id === editingId ? { ...u, ...formData } : u)));
-      if (modalType === "posyandu")
-        setPosyandus(posyandus.map((p) => (p.id === editingId ? { ...p, ...formData } : p)));
-      if (modalType === "child")
-        setChildren(children.map((c) => (c.id === editingId ? { ...c, ...formData } : c)));
-      
-      success("✓ Data berhasil diperbarui");
-    } else {
-      const newId = Math.max(...(modalType === "user" ? users : modalType === "posyandu" ? posyandus : children).map((i) => i.id), 0) + 1;
-      const newItem = { id: newId, ...formData };
-      if (modalType === "user") setUsers([...users, newItem]);
-      if (modalType === "posyandu") setPosyandus([...posyandus, newItem]);
-      if (modalType === "child") setChildren([...children, newItem]);
-      
-      success("✓ Data baru berhasil ditambahkan");
+    try {
+      if (editingId) {
+        if (modalType === "user") {
+          const updated = await api.updateUser(editingId, {
+            name: formData.name,
+            email: formData.email,
+            role: formData.role,
+            wilayah: formData.wilayah,
+            nik: formData.nik || undefined,
+            phone: formData.phone || undefined,
+            posyanduId: formData.posyanduId || undefined,
+            password: formData.password || undefined
+          });
+          setUsers(users.map((u) => (u.id === editingId ? {
+            id: updated.id,
+            name: updated.name,
+            email: updated.email,
+            role: updated.role,
+            wilayah: updated.wilayah,
+            posyanduId: updated.posyanduId || "",
+            nik: updated.nik || "",
+            phone: updated.phone || "",
+            status: "Aktif"
+          } : u)));
+        }
+        if (modalType === "posyandu") {
+          const updated = await api.updatePosyandu(editingId, {
+            name: formData.name,
+            kecamatan: formData.kecamatan,
+            kelurahan: formData.kelurahan,
+            active: formData.status !== "Nonaktif",
+            kaderName: formData.kaderName || ""
+          });
+          setPosyandus(posyandus.map((p) => (p.id === editingId ? {
+            id: updated.posyandu.id,
+            name: updated.posyandu.name,
+            kecamatan: updated.posyandu.kecamatan,
+            kelurahan: updated.posyandu.kelurahan,
+            kaderName: updated.posyandu.kaderName || "",
+            status: updated.posyandu.active ? "Aktif" : "Nonaktif"
+          } : p)));
+        }
+        if (modalType === "child") {
+          const orig = children.find(c => c.id === editingId)?.original;
+          const updatedChild = {
+            ...orig,
+            nama: formData.name,
+            namaIbu: formData.mother,
+            jenisKelamin: formData.gender || "L",
+            tanggalLahir: formData.birthDate || (orig?.tanggalLahir ? orig.tanggalLahir.split("T")[0] : new Date().toISOString().split("T")[0]),
+            beratLahir: parseFloat(formData.birthWeight) || 3.0,
+            statusGizi: formData.status,
+            beratBadan: parseFloat(formData.bb) || 0,
+            tinggiBadan: parseFloat(formData.tb) || 0,
+            posyanduId: formData.posyanduId || null
+          };
+          const res = await api.updateChild(editingId, updatedChild, posyandus);
+          setChildren(children.map((c) => (c.id === editingId ? {
+            id: editingId,
+            name: res.nama,
+            mother: res.namaIbu,
+            wilayah: res.posyandu,
+            posyanduId: res.posyanduId,
+            status: res.statusGizi,
+            bb: res.beratBadan,
+            tb: res.tinggiBadan,
+            original: res
+          } : c)));
+        }
+        
+        success("✓ Data berhasil diperbarui");
+      } else {
+        if (modalType === "user") {
+          const payload = {
+            name: formData.name,
+            email: formData.email || `${formData.name.toLowerCase().replace(/\s/g, "")}@posco.id`,
+            role: formData.role || "orangtua",
+            wilayah: formData.wilayah || "",
+            password: formData.password || "password123",
+            nik: formData.nik || undefined,
+            phone: formData.phone || undefined,
+            posyanduId: formData.posyanduId || undefined
+          };
+          const created = await api.createUser(payload);
+          setUsers([...users, {
+            id: created.id,
+            name: created.name,
+            email: created.email,
+            role: created.role,
+            wilayah: created.wilayah,
+            posyanduId: created.posyanduId || "",
+            nik: created.nik || "",
+            phone: created.phone || "",
+            status: "Aktif"
+          }]);
+        }
+        if (modalType === "posyandu") {
+          const payload = {
+            name: formData.name,
+            kecamatan: formData.kecamatan,
+            kelurahan: formData.kelurahan,
+            active: formData.status !== "Nonaktif",
+            kaderName: formData.kaderName || ""
+          };
+          const res = await api.createPosyandu(payload);
+          setPosyandus([...posyandus, {
+            id: res.posyandu.id,
+            name: res.posyandu.name,
+            kecamatan: res.posyandu.kecamatan,
+            kelurahan: res.posyandu.kelurahan,
+            kaderName: res.posyandu.kaderName || "",
+            status: res.posyandu.active ? "Aktif" : "Nonaktif"
+          }]);
+        }
+        if (modalType === "child") {
+          const payload = {
+            nama: formData.name,
+            namaIbu: formData.mother || "",
+            jenisKelamin: formData.gender || "L",
+            tanggalLahir: formData.birthDate || new Date().toISOString().split("T")[0],
+            beratLahir: parseFloat(formData.birthWeight) || 3.0,
+            tinggiBadan: parseFloat(formData.tb) || 0,
+            beratBadan: parseFloat(formData.bb) || 0,
+            statusGizi: formData.status || "Normal",
+            statusStunting: "Tidak Stunting",
+            posyanduId: formData.posyanduId || null,
+            imunisasi: { bcg: false, hb0: false, polio: false, dpt1: false, dpt2: false, campak: false },
+            riwayatPemeriksaan: []
+          };
+          const res = await api.createChild(payload, posyandus);
+          setChildren([...children, {
+            id: res.id,
+            name: res.nama,
+            mother: res.namaIbu,
+            wilayah: res.posyandu,
+            posyanduId: res.posyanduId,
+            status: res.statusGizi,
+            bb: res.beratBadan,
+            tb: res.tinggiBadan,
+            original: res
+          }]);
+        }
+        
+        success("✓ Data baru berhasil ditambahkan");
+      }
+      setShowModal(false);
+    } catch (err) {
+      error("⚠️ Gagal menyimpan data: " + err.message);
     }
-    setShowModal(false);
   };
 
   const getStatusColor = (status) => {
@@ -149,13 +474,28 @@ export default function AdminDashboard() {
     return "#6B7280";
   };
 
-  const handleStatusChange = (childId, newStatusValue) => {
-    setChildren(children.map(child =>
-      child.id === childId ? { ...child, status: newStatusValue } : child
-    ));
-    setEditingChildStatus(null);
-    setNewStatus("");
-    success("✓ Status anak berhasil diperbarui");
+  const handleStatusChange = async (childId, newStatusValue) => {
+    try {
+      const child = children.find(c => c.id === childId);
+      if (!child) return;
+      const updatedChild = {
+        ...child.original,
+        statusGizi: newStatusValue
+      };
+      const res = await api.updateChild(childId, updatedChild, posyandus);
+      setChildren(children.map(c =>
+        c.id === childId ? {
+          ...c,
+          status: res.statusGizi,
+          original: res
+        } : c
+      ));
+      setEditingChildStatus(null);
+      setNewStatus("");
+      success("✓ Status anak berhasil diperbarui");
+    } catch (err) {
+      error("⚠️ Gagal memperbarui status: " + err.message);
+    }
   };
 
   // Component: Sidebar
@@ -237,7 +577,6 @@ export default function AdminDashboard() {
           marginTop: "auto",
           paddingTop: 24,
           borderTop: "1px solid rgba(255,255,255,0.2)",
-          marginTop: 40,
         }}
       >
         <button
@@ -275,12 +614,19 @@ export default function AdminDashboard() {
   // Component: Dashboard
   const Dashboard = () => (
     <div className="fade-in">
-      {/* Greeting Section */}
-      <div style={{ marginBottom: 32, paddingBottom: 24, borderBottom: "1px solid #E5E7EB" }}>
-        <h1 style={{ fontSize: 28, fontWeight: 800, marginBottom: 8, color: "#111827" }}>
+      {/* Welcome Card */}
+      <div style={{
+        background: "linear-gradient(135deg, #16A34A 0%, #15803D 100%)",
+        borderRadius: 16,
+        padding: 32,
+        color: "#fff",
+        marginBottom: 32,
+        boxShadow: "0 8px 20px rgba(22, 163, 74, 0.2)"
+      }}>
+        <h2 style={{ fontSize: 28, fontWeight: 800, margin: "0 0 8px", color: "#fff" }}>
           Selamat Datang, {user?.name?.split(" ")[0]}! 👋
-        </h1>
-        <p style={{ fontSize: 14, color: "#6B7280" }}>
+        </h2>
+        <p style={{ margin: 0, opacity: 0.9, fontSize: 14 }}>
           Wilayah: <strong>{user?.wilayah || "Kota Padang"}</strong> | Role: <strong>Administrator</strong>
         </p>
       </div>
@@ -299,10 +645,10 @@ export default function AdminDashboard() {
         }}
       >
         {[
-          { title: "Total Posyandu", value: "55", icon: "🏥", trend: "+5 bulan ini" },
-          { title: "Kunjungan", value: "180", icon: "📅", trend: "+15 bulan ini" },
-          { title: "Anak Terdaftar", value: "350", icon: "👶", trend: "+30 bulan ini" },
-          { title: "Status Stunting", value: "35", icon: "⚠️", trend: "+3 bulan ini" },
+          { title: "Total Posyandu", value: posyandus.length, icon: "🏥", trend: "+5 posyandu" },
+          { title: "Kunjungan Sesi", value: sessions.length, icon: "📅", trend: "+15 bulan ini" },
+          { title: "Anak Terdaftar", value: children.length, icon: "👶", trend: "+30 anak" },
+          { title: "Status Stunting", value: children.filter(c => c.status === "Stunting").length, icon: "⚠️", trend: "aktif stunting" },
         ].map((stat, idx) => (
           <div
             key={idx}
@@ -350,21 +696,24 @@ export default function AdminDashboard() {
             Tren 6 Bulan
           </h3>
           <div style={{ height: 250, display: "flex", alignItems: "flex-end", gap: 12 }}>
-            {trendData.map((data, idx) => (
-              <div key={idx} style={{ flex: 1, display: "flex", flexDirection: "column" }}>
-                <div
-                  style={{
-                    height: `${(data.anak / 350) * 200}px`,
-                    background: "linear-gradient(180deg, #16A34A 0%, #D1FAE5 100%)",
-                    borderRadius: "8px 8px 0 0",
-                    marginBottom: 8,
-                  }}
-                />
-                <div style={{ fontSize: 11, color: "#6B7280", textAlign: "center" }}>
-                  {data.month}
+            {trendData.map((data, idx) => {
+              const maxAnak = Math.max(...trendData.map(d => d.anak), 1);
+              return (
+                <div key={idx} style={{ flex: 1, display: "flex", flexDirection: "column" }}>
+                  <div
+                    style={{
+                      height: `${(data.anak / maxAnak) * 200}px`,
+                      background: "linear-gradient(180deg, #16A34A 0%, #D1FAE5 100%)",
+                      borderRadius: "8px 8px 0 0",
+                      marginBottom: 8,
+                    }}
+                  />
+                  <div style={{ fontSize: 11, color: "#6B7280", textAlign: "center" }}>
+                    {data.month}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 
@@ -462,7 +811,7 @@ export default function AdminDashboard() {
                 Role
               </th>
               <th style={{ padding: "16px", textAlign: "left", fontSize: 12, fontWeight: 700, color: "#6B7280" }}>
-                Wilayah
+                Wilayah / Posyandu
               </th>
               <th style={{ padding: "16px", textAlign: "left", fontSize: 12, fontWeight: 700, color: "#6B7280" }}>
                 Status
@@ -475,15 +824,53 @@ export default function AdminDashboard() {
           <tbody>
             {users.map((user) => (
               <tr key={user.id} style={{ borderBottom: "1px solid #E5E7EB" }}>
-                <td style={{ padding: "16px", fontSize: 14, color: "#111827" }}>{user.name}</td>
                 <td style={{ padding: "16px", fontSize: 14, color: "#111827" }}>
-                  <span className="status-badge status-active">{user.role}</span>
+                  <div style={{ fontWeight: 600 }}>{user.name}</div>
+                  <div style={{ fontSize: 11, color: "#6B7280" }}>{user.email}</div>
                 </td>
-                <td style={{ padding: "16px", fontSize: 14, color: "#6B7280" }}>{user.wilayah}</td>
                 <td style={{ padding: "16px", fontSize: 14, color: "#111827" }}>
-                  <span className="status-badge status-active">{user.status}</span>
+                  <span style={getRoleStyle(user.role)}>{getRoleLabel(user.role)}</span>
+                </td>
+                <td style={{ padding: "16px", fontSize: 14, color: "#6B7280" }}>
+                  <div>{user.wilayah || "-"}</div>
+                  {user.posyanduId && (
+                    <div style={{ fontSize: 11, color: "#16A34A", fontWeight: 600, marginTop: 2 }}>
+                      📍 {posyandus.find(p => p.id === user.posyanduId)?.name || "Posyandu"}
+                    </div>
+                  )}
+                </td>
+                <td style={{ padding: "16px", fontSize: 14, color: "#111827" }}>
+                  <span style={getStatusStyle(user.status)}>{user.status}</span>
                 </td>
                 <td style={{ padding: "16px", textAlign: "center" }}>
+                  {user.role === "kader_pending" && (
+                    <button
+                      onClick={() => handleVerifyKader(user.id)}
+                      style={{
+                        background: "linear-gradient(135deg, #16A34A 0%, #15803D 100%)",
+                        border: "none",
+                        color: "#fff",
+                        cursor: "pointer",
+                        fontSize: 11,
+                        fontWeight: 700,
+                        padding: "6px 12px",
+                        borderRadius: "6px",
+                        marginRight: 12,
+                        transition: "all 0.2s ease",
+                        boxShadow: "0 2px 6px rgba(22, 163, 74, 0.2)",
+                      }}
+                      onMouseOver={(e) => {
+                        e.target.style.transform = "translateY(-1px)";
+                        e.target.style.boxShadow = "0 4px 10px rgba(22, 163, 74, 0.3)";
+                      }}
+                      onMouseOut={(e) => {
+                        e.target.style.transform = "translateY(0)";
+                        e.target.style.boxShadow = "0 2px 6px rgba(22, 163, 74, 0.2)";
+                      }}
+                    >
+                      Verifikasi
+                    </button>
+                  )}
                   <button
                     onClick={() => handleEditClick("user", user)}
                     style={{
@@ -648,9 +1035,37 @@ export default function AdminDashboard() {
   // Component: Monitoring Anak
   const MonitoringAnak = () => (
     <div className="fade-in">
-      <h2 style={{ fontSize: 28, fontWeight: 800, marginBottom: 24, color: "#111827" }}>
-        Monitoring Anak
-      </h2>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
+        <h2 style={{ fontSize: 28, fontWeight: 800, color: "#111827", margin: 0 }}>
+          Monitoring Anak
+        </h2>
+        <button
+          className="btn-hover"
+          onClick={() => handleAddClick("child")}
+          style={{
+            background: "linear-gradient(135deg, #16A34A 0%, #15803D 100%)",
+            color: "#fff",
+            border: "none",
+            padding: "10px 20px",
+            borderRadius: 8,
+            fontSize: 14,
+            fontWeight: 600,
+            cursor: "pointer",
+            transition: "all 0.3s ease",
+            boxShadow: "0 4px 12px rgba(22, 163, 74, 0.25)",
+          }}
+          onMouseOver={(e) => {
+            e.target.style.transform = "translateY(-2px)";
+            e.target.style.boxShadow = "0 8px 20px rgba(22, 163, 74, 0.35)";
+          }}
+          onMouseOut={(e) => {
+            e.target.style.transform = "translateY(0)";
+            e.target.style.boxShadow = "0 4px 12px rgba(22, 163, 74, 0.25)";
+          }}
+        >
+          + Tambah Anak
+        </button>
+      </div>
 
       <div style={{ display: "flex", gap: 16, marginBottom: 24 }}>
         <input
@@ -725,6 +1140,9 @@ export default function AdminDashboard() {
                   </th>
                   <th style={{ padding: "16px", textAlign: "left", fontSize: 12, fontWeight: 700, color: "#6B7280" }}>
                     Status
+                  </th>
+                  <th style={{ padding: "16px", textAlign: "center", fontSize: 12, fontWeight: 700, color: "#6B7280" }}>
+                    Aksi
                   </th>
                 </tr>
               </thead>
@@ -835,6 +1253,48 @@ export default function AdminDashboard() {
                     </div>
                   )}
                 </td>
+                <td style={{ padding: "16px", textAlign: "center" }}>
+                  <button
+                    onClick={() => {
+                      handleEditClick("child", {
+                        id: child.id,
+                        name: child.name,
+                        mother: child.mother,
+                        gender: child.original?.gender || "L",
+                        birthDate: child.original?.tanggalLahir || "",
+                        birthWeight: child.original?.beratLahir || 3.0,
+                        tb: child.tb,
+                        bb: child.bb,
+                        status: child.status,
+                        posyanduId: child.posyanduId || ""
+                      });
+                    }}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      color: "#3B82F6",
+                      cursor: "pointer",
+                      fontSize: 12,
+                      fontWeight: 600,
+                      marginRight: 12,
+                    }}
+                  >
+                    Edit
+                  </button>
+                  <button
+                    onClick={() => handleDeleteClick("child", child.id)}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      color: "#DC2626",
+                      cursor: "pointer",
+                      fontSize: 12,
+                      fontWeight: 600,
+                    }}
+                  >
+                    Hapus
+                  </button>
+                </td>
               </tr>
             ))}
               </tbody>
@@ -866,21 +1326,24 @@ export default function AdminDashboard() {
             Tren Pertumbuhan Anak
           </h3>
           <div style={{ height: 250, display: "flex", alignItems: "flex-end", gap: 8 }}>
-            {trendData.map((data, idx) => (
-              <div key={idx} style={{ flex: 1, display: "flex", flexDirection: "column" }}>
-                <div
-                  style={{
-                    height: `${(data.anak / 350) * 200}px`,
-                    background: "linear-gradient(180deg, #16A34A 0%, #D1FAE5 100%)",
-                    borderRadius: "8px 8px 0 0",
-                    marginBottom: 8,
-                  }}
-                />
-                <div style={{ fontSize: 10, color: "#6B7280", textAlign: "center" }}>
-                  {data.month}
+            {trendData.map((data, idx) => {
+              const maxAnakTrend = Math.max(...trendData.map(d => d.anak), 1);
+              return (
+                <div key={idx} style={{ flex: 1, display: "flex", flexDirection: "column" }}>
+                  <div
+                    style={{
+                      height: `${(data.anak / maxAnakTrend) * 200}px`,
+                      background: "linear-gradient(180deg, #16A34A 0%, #D1FAE5 100%)",
+                      borderRadius: "8px 8px 0 0",
+                      marginBottom: 8,
+                    }}
+                  />
+                  <div style={{ fontSize: 10, color: "#6B7280", textAlign: "center" }}>
+                    {data.month}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 
@@ -911,7 +1374,7 @@ export default function AdminDashboard() {
                 }}
               />
               <div style={{ fontSize: 12, fontWeight: 600, color: "#111827" }}>Normal</div>
-              <div style={{ fontSize: 14, fontWeight: 800, color: "#16A34A" }}>70%</div>
+              <div style={{ fontSize: 14, fontWeight: 800, color: "#16A34A" }}>{compositionData.normal}%</div>
             </div>
             <div style={{ textAlign: "center" }}>
               <div
@@ -924,7 +1387,7 @@ export default function AdminDashboard() {
                 }}
               />
               <div style={{ fontSize: 12, fontWeight: 600, color: "#111827" }}>Risiko</div>
-              <div style={{ fontSize: 14, fontWeight: 800, color: "#D97706" }}>20%</div>
+              <div style={{ fontSize: 14, fontWeight: 800, color: "#D97706" }}>{compositionData.risiko}%</div>
             </div>
             <div style={{ textAlign: "center" }}>
               <div
@@ -937,7 +1400,7 @@ export default function AdminDashboard() {
                 }}
               />
               <div style={{ fontSize: 12, fontWeight: 600, color: "#111827" }}>Stunting</div>
-              <div style={{ fontSize: 14, fontWeight: 800, color: "#DC2626" }}>10%</div>
+              <div style={{ fontSize: 14, fontWeight: 800, color: "#DC2626" }}>{compositionData.stunting}%</div>
             </div>
           </div>
         </div>
@@ -1036,6 +1499,7 @@ export default function AdminDashboard() {
         formData={formData}
         onFormChange={handleFormChange}
         onSave={handleSaveClick}
+        posyandus={posyandus}
       />
     </div>
   );

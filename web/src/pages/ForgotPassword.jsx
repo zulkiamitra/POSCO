@@ -1,19 +1,13 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useNotification } from "../context/NotificationContext";
 import logo from "../assets/POSCO_LOGO_KITA.png";
 
-// Dummy data untuk email registered
-const registeredEmails = [
-  "admin@posco.id",
-  "kader@posco.id",
-  "orangtua@posco.id",
-  "dinas.kesehatan@padang.go.id",
-];
+const apiBaseUrl = import.meta.env.VITE_API_URL || "http://localhost:4000";
 
 export default function ForgotPassword() {
   const navigate = useNavigate();
-  const { success: successNotify, error: errorNotify, info: infoNotify } = useNotification();
+  const { error: errorNotify, info: infoNotify } = useNotification();
   const [step, setStep] = useState(1); // 1: email, 2: verification, 3: reset password
   const [email, setEmail] = useState("");
   const [verificationCode, setVerificationCode] = useState("");
@@ -23,27 +17,48 @@ export default function ForgotPassword() {
   const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
 
+  // Detect recovery link redirection on mount
+  useEffect(() => {
+    const hash = window.location.hash;
+    if (hash && hash.includes("access_token") && (hash.includes("type=recovery") || hash.includes("type=signup"))) {
+      const params = new URLSearchParams(hash.replace("#", "?"));
+      const token = params.get("access_token");
+      if (token) {
+        setSuccess("✓ Email berhasil diverifikasi via link pemulihan! Silakan buat kata sandi baru.");
+        setStep(3);
+        window.history.replaceState(null, null, window.location.pathname);
+      }
+    }
+  }, []);
+
   const handleEmailSubmit = async (e) => {
     e.preventDefault();
     setError("");
     setSuccess("");
     setLoading(true);
 
-    // Simulate API call
-    await new Promise((r) => setTimeout(r, 1200));
+    try {
+      const response = await fetch(`${apiBaseUrl}/auth/forgot-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.toLowerCase() }),
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(data?.message || "Email tidak terdaftar dalam sistem kami");
+      }
 
-    // Check if email is registered
-    if (registeredEmails.includes(email.toLowerCase())) {
-      const msg = `✓ Kode verifikasi telah dikirim ke ${email}`;
+      const msg = `✓ Kode/link verifikasi telah dikirim ke ${email}`;
       setSuccess(msg);
       infoNotify(msg);
       setStep(2);
-    } else {
-      const msg = "⚠️ Email tidak terdaftar dalam sistem kami";
-      setError(msg);
-      errorNotify(msg);
+    } catch (err) {
+      const msg = err.message || "Email tidak terdaftar dalam sistem kami";
+      setError("⚠️ " + msg);
+      errorNotify("⚠️ " + msg);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const handleVerificationSubmit = async (e) => {
@@ -52,17 +67,24 @@ export default function ForgotPassword() {
     setSuccess("");
     setLoading(true);
 
-    // Simulate API call
-    await new Promise((r) => setTimeout(r, 1200));
+    try {
+      const response = await fetch(`${apiBaseUrl}/auth/verify-reset-code`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.toLowerCase(), code: verificationCode.trim() }),
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(data?.message || "Kode verifikasi salah atau kedaluwarsa");
+      }
 
-    // Dummy verification code
-    if (verificationCode === "123456") {
       setSuccess("Kode verifikasi benar! Silakan buat password baru.");
       setStep(3);
-    } else {
-      setError("Kode verifikasi salah. Coba lagi.");
+    } catch (err) {
+      setError(err.message || "Kode verifikasi salah. Coba lagi.");
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const handleResetPassword = async (e) => {
@@ -80,16 +102,36 @@ export default function ForgotPassword() {
       return;
     }
 
+    // Password strength check
+    const hasUppercase = /[A-Z]/.test(newPassword);
+    const hasNumber = /[0-9]/.test(newPassword);
+    if (!hasUppercase || !hasNumber) {
+      setError("Kata sandi harus mengandung huruf besar dan angka");
+      return;
+    }
+
     setLoading(true);
-    // Simulate API call
-    await new Promise((r) => setTimeout(r, 1200));
+    try {
+      const response = await fetch(`${apiBaseUrl}/auth/reset-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.toLowerCase(), password: newPassword }),
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(data?.message || "Gagal mereset password");
+      }
 
-    setSuccess("Password berhasil direset! Silakan login dengan password baru.");
-    setTimeout(() => {
-      navigate("/login");
-    }, 2000);
-
-    setLoading(false);
+      setSuccess("Password berhasil direset! Silakan login dengan password baru.");
+      setTimeout(() => {
+        navigate("/login");
+      }, 2000);
+    } catch (err) {
+      setError(err.message || "Gagal mereset password");
+      errorNotify("⚠️ " + (err.message || "Gagal mereset password"));
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -469,9 +511,7 @@ export default function ForgotPassword() {
                 />
               </div>
 
-              <p style={{ fontSize: 12, color: "#6B7280", marginBottom: 16 }}>
-                💡 <strong>Kode demo:</strong> 123456
-              </p>
+
 
               {error && (
                 <div

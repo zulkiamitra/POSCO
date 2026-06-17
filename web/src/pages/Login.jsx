@@ -5,7 +5,7 @@ import { useNotification } from "../context/NotificationContext";
 import logo from "../assets/POSCO_LOGO_KITA.png";
 
 export default function Login() {
-  const { login } = useAuth();
+  const { login, register } = useAuth();
   const navigate = useNavigate();
   const { success, error: errorNotify } = useNotification();
   const [role, setRole] = useState("kader");
@@ -13,28 +13,34 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [showRegister, setShowRegister] = useState(false);
 
   const handleLogin = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError("");
-    await new Promise(r => setTimeout(r, 800));
-    const ok = login(role, email, password);
-    if (ok) {
-      success("✓ Login berhasil! Selamat datang");
-      // Redirect berdasarkan role
-      setTimeout(() => {
-        const routes = { admin: "/admin", kader: "/kader", orangtua: "/orangtua" };
-        navigate(routes[role] || "/dashboard");
-      }, 500);
-    } else {
-      const errorMsg = "⚠️ ID atau kata sandi tidak valid";
+    try {
+      await new Promise(r => setTimeout(r, 400));
+      const loggedInUser = await login(role, email, password);
+      if (loggedInUser) {
+        success("✓ Login berhasil! Selamat datang");
+        // Redirect berdasarkan role asli dari database
+        setTimeout(() => {
+          const routes = { admin: "/admin", kader: "/kader", orangtua: "/orangtua", verifikator: "/verifikator" };
+          navigate(routes[loggedInUser.role] || "/dashboard");
+        }, 500);
+      } else {
+        throw new Error("ID atau kata sandi tidak valid");
+      }
+    } catch (err) {
+      const errorMsg = err.message || "ID atau kata sandi tidak valid";
       setError(errorMsg);
-      errorNotify(errorMsg);
+      errorNotify("⚠️ " + errorMsg);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
+
+
 
   const roles = [
     { key: "kader", label: "Kader", icon: (
@@ -311,58 +317,12 @@ export default function Login() {
 
           <p style={{ textAlign: "center", marginTop: 20, fontSize: 13, color: "#6B7280" }}>
             Belum punya akses?{" "}
-            <span onClick={() => setShowRegister(true)} style={{ color: "#16A34A", fontWeight: 600, cursor: "pointer" }}>
+            <span onClick={() => navigate("/register")} style={{ color: "#16A34A", fontWeight: 600, cursor: "pointer" }}>
               Daftar Akun Baru
             </span>
           </p>
         </div>
       </div>
-
-      {showRegister && (
-        <div style={{
-          position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)",
-          display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000
-        }}>
-          <div style={{
-            background: "#fff", borderRadius: 20, width: "100%", maxWidth: 500,
-            padding: 40, margin: 20, position: "relative"
-          }}>
-            <button onClick={() => setShowRegister(false)} style={{
-              position: "absolute", top: 16, right: 16, border: "none",
-              background: "none", fontSize: 20, cursor: "pointer"
-            }}>✕</button>
-            <h2 style={{ margin: "0 0 24px", fontSize: 22, fontWeight: 700 }}>Buat Akun Baru</h2>
-            <div style={{ marginBottom: 16 }}>
-              <label style={{ fontSize: 12, fontWeight: 600, display: "block", marginBottom: 5 }}>NAMA LENGKAP</label>
-              <input placeholder="Masukkan nama" style={{
-                width: "100%", padding: "11px 14px", borderRadius: 8,
-                border: "1.5px solid #E5E7EB", fontSize: 14, boxSizing: "border-box"
-              }} />
-            </div>
-            <div style={{ marginBottom: 16 }}>
-              <label style={{ fontSize: 12, fontWeight: 600, display: "block", marginBottom: 5 }}>EMAIL</label>
-              <input type="email" placeholder="email@example.com" style={{
-                width: "100%", padding: "11px 14px", borderRadius: 8,
-                border: "1.5px solid #E5E7EB", fontSize: 14, boxSizing: "border-box"
-              }} />
-            </div>
-            <div style={{ marginBottom: 16 }}>
-              <label style={{ fontSize: 12, fontWeight: 600, display: "block", marginBottom: 5 }}>KATA SANDI</label>
-              <input type="password" placeholder="Min. 8 karakter" style={{
-                width: "100%", padding: "11px 14px", borderRadius: 8,
-                border: "1.5px solid #E5E7EB", fontSize: 14, boxSizing: "border-box"
-              }} />
-            </div>
-            <button style={{
-              width: "100%", marginTop: 20, padding: "13px", borderRadius: 10,
-              background: "linear-gradient(135deg, #16A34A 0%, #15803D 100%)", 
-              color: "#fff", border: "none", fontSize: 15, fontWeight: 600, cursor: "pointer"
-            }}>
-              DAFTARKAN AKUN
-            </button>
-          </div>
-        </div>
-      )}
     </div>
     </div>
   );
