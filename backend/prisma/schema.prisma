@@ -1,0 +1,106 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String?
+  passwordHash String
+  role         String   @default("user")
+  nik          String?  @unique
+  phone        String?
+  wilayah      String?
+  posyanduId   String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  posyandu Posyandu? @relation(fields: [posyanduId], references: [id])
+  children Child[]   @relation("ParentChildren")
+}
+
+model Posyandu {
+  id          String   @id @default(cuid())
+  name        String
+  kecamatan   String
+  kelurahan   String
+  active      Boolean  @default(true)
+  kaderName   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users       User[]
+  children    Child[]
+  pregnancies Pregnancy[]
+  sessions    PosyanduSession[]
+}
+
+model Child {
+  id              String   @id @default(cuid())
+  name            String
+  motherName      String?
+  birthDate       DateTime?
+  gender          String?
+  birthWeight     Float?
+  height          Float?
+  weight          Float?
+  nutritionStatus String?
+  stuntingStatus  String?
+  immunization    Json?
+  checkupHistory  Json?
+  posyanduId      String?
+  orangtuaId      String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  posyandu Posyandu? @relation(fields: [posyanduId], references: [id])
+  orangtua User?     @relation("ParentChildren", fields: [orangtuaId], references: [id])
+}
+
+model Pregnancy {
+  id             String   @id @default(cuid())
+  name           String
+  age            Int?
+  gestationalAge Int?
+  hpht           DateTime?
+  dueDate        DateTime?
+  bloodPressure  String?
+  weight         Float?
+  highRisk       Boolean  @default(false)
+  posyanduId     String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  posyandu Posyandu? @relation(fields: [posyanduId], references: [id])
+}
+
+model PosyanduSession {
+  id              String   @id @default(cuid())
+  date            DateTime
+  timeRange       String?
+  attendanceCount Int?     @default(0)
+  status          String?
+  kaderName       String?
+  posyanduId      String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  posyandu Posyandu? @relation(fields: [posyanduId], references: [id])
+}
+
+model Referral {
+  id          String   @id @default(cuid())
+  childName   String
+  reason      String?
+  destination String?
+  date        DateTime?
+  status      String?
+  kaderName   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}

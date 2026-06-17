@@ -1,7 +1,9 @@
 import React, { useState, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { useNotification } from "../context/NotificationContext";
 import ModalForm from "./ModalForm";
+import EmptyState from "../components/EmptyState";
 import logo from "../assets/POSCO_LOGO_KITA.png";
 
 // Dummy Data
@@ -51,6 +53,7 @@ const wilayahData = [
 export default function AdminDashboard() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
+  const { success, error, warning } = useNotification();
   const [activePage, setActivePage] = useState("dashboard");
   const [users, setUsers] = useState(dummyUsers);
   const [posyandus, setPosyandus] = useState(dummyPosyandu);
@@ -61,6 +64,8 @@ export default function AdminDashboard() {
   const [searchQuery, setSearchQuery] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
   const [formData, setFormData] = useState({});
+  const [editingChildStatus, setEditingChildStatus] = useState(null);
+  const [newStatus, setNewStatus] = useState("");
 
   // useCallback untuk form handler - tidak akan recreate setiap render
   const handleFormChange = useCallback((field, value) => {
@@ -95,13 +100,27 @@ export default function AdminDashboard() {
 
   const handleDeleteClick = (type, id) => {
     if (window.confirm("Yakin ingin menghapus data ini?")) {
-      if (type === "user") setUsers(users.filter((u) => u.id !== id));
-      if (type === "posyandu") setPosyandus(posyandus.filter((p) => p.id !== id));
-      if (type === "child") setChildren(children.filter((c) => c.id !== id));
+      if (type === "user") {
+        setUsers(users.filter((u) => u.id !== id));
+        success("✓ User berhasil dihapus");
+      }
+      if (type === "posyandu") {
+        setPosyandus(posyandus.filter((p) => p.id !== id));
+        success("✓ Posyandu berhasil dihapus");
+      }
+      if (type === "child") {
+        setChildren(children.filter((c) => c.id !== id));
+        success("✓ Data anak berhasil dihapus");
+      }
     }
   };
 
   const handleSaveClick = () => {
+    if (!formData.name) {
+      error("⚠️ Nama harus diisi");
+      return;
+    }
+
     if (editingId) {
       if (modalType === "user")
         setUsers(users.map((u) => (u.id === editingId ? { ...u, ...formData } : u)));
@@ -109,12 +128,16 @@ export default function AdminDashboard() {
         setPosyandus(posyandus.map((p) => (p.id === editingId ? { ...p, ...formData } : p)));
       if (modalType === "child")
         setChildren(children.map((c) => (c.id === editingId ? { ...c, ...formData } : c)));
+      
+      success("✓ Data berhasil diperbarui");
     } else {
       const newId = Math.max(...(modalType === "user" ? users : modalType === "posyandu" ? posyandus : children).map((i) => i.id), 0) + 1;
       const newItem = { id: newId, ...formData };
       if (modalType === "user") setUsers([...users, newItem]);
       if (modalType === "posyandu") setPosyandus([...posyandus, newItem]);
       if (modalType === "child") setChildren([...children, newItem]);
+      
+      success("✓ Data baru berhasil ditambahkan");
     }
     setShowModal(false);
   };
@@ -124,6 +147,15 @@ export default function AdminDashboard() {
     if (status === "Risiko") return "#D97706";
     if (status === "Stunting") return "#DC2626";
     return "#6B7280";
+  };
+
+  const handleStatusChange = (childId, newStatusValue) => {
+    setChildren(children.map(child =>
+      child.id === childId ? { ...child, status: newStatusValue } : child
+    ));
+    setEditingChildStatus(null);
+    setNewStatus("");
+    success("✓ Status anak berhasil diperbarui");
   };
 
   // Component: Sidebar
@@ -652,36 +684,52 @@ export default function AdminDashboard() {
         </select>
       </div>
 
-      <div
-        style={{
-          background: "#fff",
-          borderRadius: 12,
-          border: "1px solid #E5E7EB",
-          overflow: "hidden",
-        }}
-      >
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead>
-            <tr style={{ background: "#F9FAFB", borderBottom: "1px solid #E5E7EB" }}>
-              <th style={{ padding: "16px", textAlign: "left", fontSize: 12, fontWeight: 700, color: "#6B7280" }}>
-                Nama Anak
-              </th>
-              <th style={{ padding: "16px", textAlign: "left", fontSize: 12, fontWeight: 700, color: "#6B7280" }}>
-                Nama Ibu
-              </th>
-              <th style={{ padding: "16px", textAlign: "left", fontSize: 12, fontWeight: 700, color: "#6B7280" }}>
-                Wilayah
-              </th>
-              <th style={{ padding: "16px", textAlign: "left", fontSize: 12, fontWeight: 700, color: "#6B7280" }}>
-                BB / TB
-              </th>
-              <th style={{ padding: "16px", textAlign: "left", fontSize: 12, fontWeight: 700, color: "#6B7280" }}>
-                Status
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredChildren.map((child) => (
+      {filteredChildren.length === 0 ? (
+        <EmptyState
+          icon="📊"
+          title="Tidak Ada Data"
+          description={searchQuery || filterStatus ? "Coba ubah filter atau pencarian Anda" : "Belum ada data anak yang tersimpan"}
+          actionLabel={searchQuery || filterStatus ? "Reset Filter" : undefined}
+          onAction={() => {
+            setSearchQuery("");
+            setFilterStatus("");
+          }}
+        />
+      ) : (
+        <div style={{ marginBottom: 24 }}>
+          <p style={{ fontSize: 14, color: "#6B7280", marginBottom: 16 }}>
+            Menampilkan <strong>{filteredChildren.length}</strong> dari <strong>{children.length}</strong> data anak
+          </p>
+          <div
+            style={{
+              background: "#fff",
+              borderRadius: 12,
+              border: "1px solid #E5E7EB",
+              overflow: "hidden",
+            }}
+          >
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <thead>
+                <tr style={{ background: "#F9FAFB", borderBottom: "1px solid #E5E7EB" }}>
+                  <th style={{ padding: "16px", textAlign: "left", fontSize: 12, fontWeight: 700, color: "#6B7280" }}>
+                    Nama Anak
+                  </th>
+                  <th style={{ padding: "16px", textAlign: "left", fontSize: 12, fontWeight: 700, color: "#6B7280" }}>
+                    Nama Ibu
+                  </th>
+                  <th style={{ padding: "16px", textAlign: "left", fontSize: 12, fontWeight: 700, color: "#6B7280" }}>
+                    Wilayah
+                  </th>
+                  <th style={{ padding: "16px", textAlign: "left", fontSize: 12, fontWeight: 700, color: "#6B7280" }}>
+                    BB / TB
+                  </th>
+                  <th style={{ padding: "16px", textAlign: "left", fontSize: 12, fontWeight: 700, color: "#6B7280" }}>
+                    Status
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredChildren.map((child) => (
               <tr key={child.id} style={{ borderBottom: "1px solid #E5E7EB" }}>
                 <td style={{ padding: "16px", fontSize: 14, color: "#111827", fontWeight: 600 }}>
                   {child.name}
@@ -696,21 +744,104 @@ export default function AdminDashboard() {
                   {child.bb} kg / {child.tb} cm
                 </td>
                 <td style={{ padding: "16px" }}>
-                  <span
-                    className={`status-badge status-${child.status.toLowerCase()}`}
-                    style={{
-                      background: getStatusColor(child.status) + "20",
-                      color: getStatusColor(child.status),
-                    }}
-                  >
-                    {child.status}
-                  </span>
+                  {editingChildStatus === child.id ? (
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <select
+                        value={newStatus}
+                        onChange={(e) => setNewStatus(e.target.value)}
+                        style={{
+                          padding: "6px 8px",
+                          borderRadius: 4,
+                          border: "1px solid #16A34A",
+                          fontSize: 12,
+                          background: "white",
+                          cursor: "pointer",
+                          fontFamily: "inherit"
+                        }}
+                      >
+                        <option value="">Pilih Status</option>
+                        <option value="Normal">Normal</option>
+                        <option value="Risiko">Risiko</option>
+                        <option value="Stunting">Stunting</option>
+                      </select>
+                      <button
+                        onClick={() => handleStatusChange(child.id, newStatus)}
+                        style={{
+                          padding: "6px 12px",
+                          borderRadius: 4,
+                          background: "#16A34A",
+                          color: "white",
+                          border: "none",
+                          cursor: "pointer",
+                          fontSize: 12,
+                          fontWeight: 600
+                        }}
+                      >
+                        Simpan
+                      </button>
+                      <button
+                        onClick={() => {
+                          setEditingChildStatus(null);
+                          setNewStatus("");
+                        }}
+                        style={{
+                          padding: "6px 12px",
+                          borderRadius: 4,
+                          background: "#E5E7EB",
+                          color: "#6B7280",
+                          border: "none",
+                          cursor: "pointer",
+                          fontSize: 12,
+                          fontWeight: 600
+                        }}
+                      >
+                        Batal
+                      </button>
+                    </div>
+                  ) : (
+                    <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                      <span
+                        className={`status-badge status-${child.status.toLowerCase()}`}
+                        style={{
+                          background: getStatusColor(child.status) + "20",
+                          color: getStatusColor(child.status),
+                          padding: "6px 12px",
+                          borderRadius: 4,
+                          fontSize: 12,
+                          fontWeight: 600,
+                          display: "inline-block"
+                        }}
+                      >
+                        {child.status}
+                      </span>
+                      <button
+                        onClick={() => {
+                          setEditingChildStatus(child.id);
+                          setNewStatus(child.status);
+                        }}
+                        style={{
+                          padding: "4px 8px",
+                          borderRadius: 4,
+                          background: "#F3F4F6",
+                          border: "1px solid #D1D5DB",
+                          color: "#6B7280",
+                          cursor: "pointer",
+                          fontSize: 11,
+                          fontWeight: 600
+                        }}
+                      >
+                        Ubah
+                      </button>
+                    </div>
+                  )}
                 </td>
               </tr>
             ))}
-          </tbody>
-        </table>
-      </div>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
 

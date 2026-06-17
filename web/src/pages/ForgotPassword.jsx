@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useNotification } from "../context/NotificationContext";
 import logo from "../assets/POSCO_LOGO_KITA.png";
 
 // Dummy data untuk email registered
@@ -12,6 +13,7 @@ const registeredEmails = [
 
 export default function ForgotPassword() {
   const navigate = useNavigate();
+  const { success: successNotify, error: errorNotify, info: infoNotify } = useNotification();
   const [step, setStep] = useState(1); // 1: email, 2: verification, 3: reset password
   const [email, setEmail] = useState("");
   const [verificationCode, setVerificationCode] = useState("");
@@ -32,10 +34,14 @@ export default function ForgotPassword() {
 
     // Check if email is registered
     if (registeredEmails.includes(email.toLowerCase())) {
-      setSuccess(`Kode verifikasi telah dikirim ke ${email}`);
+      const msg = `✓ Kode verifikasi telah dikirim ke ${email}`;
+      setSuccess(msg);
+      infoNotify(msg);
       setStep(2);
     } else {
-      setError("Email tidak terdaftar dalam sistem kami");
+      const msg = "⚠️ Email tidak terdaftar dalam sistem kami";
+      setError(msg);
+      errorNotify(msg);
     }
     setLoading(false);
   };

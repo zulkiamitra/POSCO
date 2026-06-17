@@ -1,11 +1,13 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { useNotification } from "../context/NotificationContext";
 import logo from "../assets/POSCO_LOGO_KITA.png";
 
 export default function Register() {
   const { register } = useAuth();
   const navigate = useNavigate();
+  const { success, error: errorNotify } = useNotification();
   const [role, setRole] = useState("orangtua");
   const [formData, setFormData] = useState({
     name: "",
@@ -30,17 +32,63 @@ export default function Register() {
 
     // Validation
     if (!formData.name || !formData.email || !formData.password || !formData.nik) {
-      setError("Semua field harus diisi");
+      const msg = "Semua field harus diisi";
+      setError(msg);
+      errorNotify("⚠️ " + msg);
       return;
     }
 
+    // Email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(formData.email)) {
+      const msg = "Email tidak valid";
+      setError(msg);
+      errorNotify("⚠️ " + msg);
+      return;
+    }
+
+    // NIK validation (harus 16 digit untuk Indonesia)
+    const nikRegex = /^\d{16}$/;
+    if (!nikRegex.test(formData.nik)) {
+      const msg = "NIK harus 16 digit angka";
+      setError(msg);
+      errorNotify("⚠️ " + msg);
+      return;
+    }
+
+    // Phone validation (optional tapi jika ada harus valid)
+    if (formData.phone) {
+      const phoneRegex = /^(\+62|0)[0-9]{9,12}$/;
+      if (!phoneRegex.test(formData.phone)) {
+        const msg = "Nomor telepon tidak valid (format: +62xxx atau 08xxx)";
+        setError(msg);
+        errorNotify("⚠️ " + msg);
+        return;
+      }
+    }
+
+    // Password strength validation
     if (formData.password.length < 8) {
-      setError("Kata sandi minimal 8 karakter");
+      const msg = "Kata sandi minimal 8 karakter";
+      setError(msg);
+      errorNotify("⚠️ " + msg);
+      return;
+    }
+
+    // Check password strength
+    const hasUppercase = /[A-Z]/.test(formData.password);
+    const hasNumber = /[0-9]/.test(formData.password);
+    if (!hasUppercase || !hasNumber) {
+      const msg = "Kata sandi harus mengandung huruf besar dan angka";
+      setError(msg);
+      errorNotify("⚠️ " + msg);
       return;
     }
 
     if (formData.password !== formData.confirmPassword) {
-      setError("Kata sandi tidak cocok");
+      const msg = "Kata sandi tidak cocok";
+      setError(msg);
+      errorNotify("⚠️ " + msg);
       return;
     }
 
@@ -58,7 +106,11 @@ export default function Register() {
     };
 
     register(userData);
-    navigate("/dashboard");
+    success("✓ Pendaftaran berhasil! Silakan login");
+    setTimeout(() => {
+      navigate("/dashboard");
+    }, 500);
+    setLoading(false);
   };
 
   return (

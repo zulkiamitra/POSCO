@@ -29,10 +29,10 @@ export const children = [
     statusGizi: "Normal", statusStunting: "Tidak Stunting", posyandu: "Posyandu Mawar",
     orangtuaId: 5, imunisasi: { bcg: true, hb0: true, polio: true, dpt1: true, dpt2: true, campak: false },
     riwayatPemeriksaan: [
-      { tanggal: "2024-01-10", bb: 8.2, tb: 70, lingkarKepala: 44, statusGizi: "Normal" },
-      { tanggal: "2024-02-14", bb: 8.7, tb: 72, lingkarKepala: 44.5, statusGizi: "Normal" },
-      { tanggal: "2024-03-20", bb: 9.1, tb: 73.5, lingkarKepala: 45, statusGizi: "Normal" },
-      { tanggal: "2024-04-18", bb: 9.5, tb: 75, lingkarKepala: 45.5, statusGizi: "Normal" },
+      { tanggal: "2024-01-10", bb: 8.2, tb: 70, lingkarKepala: 44, lingkarLengan: 13.2, statusGizi: "Normal" },
+      { tanggal: "2024-02-14", bb: 8.7, tb: 72, lingkarKepala: 44.5, lingkarLengan: 13.5, statusGizi: "Normal" },
+      { tanggal: "2024-03-20", bb: 9.1, tb: 73.5, lingkarKepala: 45, lingkarLengan: 13.8, statusGizi: "Normal" },
+      { tanggal: "2024-04-18", bb: 9.5, tb: 75, lingkarKepala: 45.5, lingkarLengan: 14.1, statusGizi: "Normal" },
     ]
   },
   {
@@ -41,10 +41,10 @@ export const children = [
     statusGizi: "Normal", statusStunting: "Tidak Stunting", posyandu: "Posyandu Melati",
     orangtuaId: 4, imunisasi: { bcg: true, hb0: true, polio: true, dpt1: true, dpt2: true, campak: true },
     riwayatPemeriksaan: [
-      { tanggal: "2024-01-08", bb: 10.1, tb: 78, lingkarKepala: 46, statusGizi: "Normal" },
-      { tanggal: "2024-02-12", bb: 10.6, tb: 80, lingkarKepala: 46.5, statusGizi: "Normal" },
-      { tanggal: "2024-03-18", bb: 10.9, tb: 81, lingkarKepala: 47, statusGizi: "Normal" },
-      { tanggal: "2024-04-15", bb: 11.2, tb: 82, lingkarKepala: 47.2, statusGizi: "Normal" },
+      { tanggal: "2024-01-08", bb: 10.1, tb: 78, lingkarKepala: 46, lingkarLengan: 14.2, statusGizi: "Normal" },
+      { tanggal: "2024-02-12", bb: 10.6, tb: 80, lingkarKepala: 46.5, lingkarLengan: 14.5, statusGizi: "Normal" },
+      { tanggal: "2024-03-18", bb: 10.9, tb: 81, lingkarKepala: 47, lingkarLengan: 14.8, statusGizi: "Normal" },
+      { tanggal: "2024-04-15", bb: 11.2, tb: 82, lingkarKepala: 47.2, lingkarLengan: 15.1, statusGizi: "Normal" },
     ]
   },
   {
@@ -53,10 +53,10 @@ export const children = [
     statusGizi: "Gizi Kurang", statusStunting: "Stunting", posyandu: "Posyandu Kenanga",
     orangtuaId: 5, imunisasi: { bcg: true, hb0: true, polio: false, dpt1: true, dpt2: false, campak: false },
     riwayatPemeriksaan: [
-      { tanggal: "2024-01-12", bb: 6.2, tb: 63, lingkarKepala: 43, statusGizi: "Gizi Kurang" },
-      { tanggal: "2024-02-16", bb: 6.5, tb: 64.5, lingkarKepala: 43.5, statusGizi: "Gizi Kurang" },
-      { tanggal: "2024-03-22", bb: 6.8, tb: 66, lingkarKepala: 43.8, statusGizi: "Gizi Kurang" },
-      { tanggal: "2024-04-19", bb: 7.1, tb: 68, lingkarKepala: 44, statusGizi: "Gizi Kurang" },
+      { tanggal: "2024-01-12", bb: 6.2, tb: 63, lingkarKepala: 43, lingkarLengan: 12.5, statusGizi: "Gizi Kurang" },
+      { tanggal: "2024-02-16", bb: 6.5, tb: 64.5, lingkarKepala: 43.5, lingkarLengan: 12.7, statusGizi: "Gizi Kurang" },
+      { tanggal: "2024-03-22", bb: 6.8, tb: 66, lingkarKepala: 43.8, lingkarLengan: 12.9, statusGizi: "Gizi Kurang" },
+      { tanggal: "2024-04-19", bb: 7.1, tb: 68, lingkarKepala: 44, lingkarLengan: 13.1, statusGizi: "Gizi Kurang" },
     ]
   },
   {
@@ -65,10 +65,10 @@ export const children = [
     statusGizi: "Normal", statusStunting: "Tidak Stunting", posyandu: "Posyandu Dahlia",
     orangtuaId: 4, imunisasi: { bcg: true, hb0: true, polio: true, dpt1: true, dpt2: false, campak: false },
     riwayatPemeriksaan: [
-      { tanggal: "2024-01-15", bb: 7.8, tb: 61, lingkarKepala: 43, statusGizi: "Normal" },
-      { tanggal: "2024-02-18", bb: 8.2, tb: 62.5, lingkarKepala: 43.5, statusGizi: "Normal" },
-      { tanggal: "2024-03-25", bb: 8.5, tb: 63.5, lingkarKepala: 44, statusGizi: "Normal" },
-      { tanggal: "2024-04-20", bb: 8.8, tb: 65, lingkarKepala: 44.5, statusGizi: "Normal" },
+      { tanggal: "2024-01-15", bb: 7.8, tb: 61, lingkarKepala: 43, lingkarLengan: 12.8, statusGizi: "Normal" },
+      { tanggal: "2024-02-18", bb: 8.2, tb: 62.5, lingkarKepala: 43.5, lingkarLengan: 13.1, statusGizi: "Normal" },
+      { tanggal: "2024-03-25", bb: 8.5, tb: 63.5, lingkarKepala: 44, lingkarLengan: 13.4, statusGizi: "Normal" },
+      { tanggal: "2024-04-20", bb: 8.8, tb: 65, lingkarKepala: 44.5, lingkarLengan: 13.7, statusGizi: "Normal" },
     ]
   },
   {
@@ -77,10 +77,10 @@ export const children = [
     statusGizi: "Gizi Lebih", statusStunting: "Tidak Stunting", posyandu: "Posyandu Anggrek",
     orangtuaId: 5, imunisasi: { bcg: true, hb0: true, polio: true, dpt1: true, dpt2: true, campak: true },
     riwayatPemeriksaan: [
-      { tanggal: "2024-01-09", bb: 10.2, tb: 84, lingkarKepala: 47, statusGizi: "Gizi Lebih" },
-      { tanggal: "2024-02-13", bb: 10.5, tb: 85, lingkarKepala: 47.2, statusGizi: "Gizi Lebih" },
-      { tanggal: "2024-03-19", bb: 10.7, tb: 86, lingkarKepala: 47.5, statusGizi: "Gizi Lebih" },
-      { tanggal: "2024-04-16", bb: 10.8, tb: 87, lingkarKepala: 47.8, statusGizi: "Gizi Lebih" },
+      { tanggal: "2024-01-09", bb: 10.2, tb: 84, lingkarKepala: 47, lingkarLengan: 14.8, statusGizi: "Gizi Lebih" },
+      { tanggal: "2024-02-13", bb: 10.5, tb: 85, lingkarKepala: 47.2, lingkarLengan: 15.0, statusGizi: "Gizi Lebih" },
+      { tanggal: "2024-03-19", bb: 10.7, tb: 86, lingkarKepala: 47.5, lingkarLengan: 15.2, statusGizi: "Gizi Lebih" },
+      { tanggal: "2024-04-16", bb: 10.8, tb: 87, lingkarKepala: 47.8, lingkarLengan: 15.4, statusGizi: "Gizi Lebih" },
     ]
   },
 ];
