@@ -1,7 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom"
 import { useAuth } from "./context/AuthContext"
-import { AuthProvider } from "./context/AuthContext"
-import { NotificationProvider } from "./context/NotificationContext"
 import { ProtectedRoute } from "./components/ProtectedRoute"
 import Home from "./pages/Home"
 import Login from "./pages/Login"
@@ -12,9 +10,20 @@ import Dashboard from "./pages/Dashboard"
 import OrangtuaDashboard from "./pages/OrangtuaDashboard"
 import AdminDashboard from "./pages/AdminDashboard"
 import KaderDashboard from "./pages/KaderDashboard"
+import VerifikatorDashboard from "./pages/VerifikatorDashboard"
 
 function App() {
   const { user } = useAuth();
+
+  const getRedirectPath = (role) => {
+    switch (role) {
+      case "admin": return "/admin";
+      case "kader": return "/kader";
+      case "orangtua": return "/orangtua";
+      case "verifikator": return "/verifikator";
+      default: return "/dashboard";
+    }
+  };
 
   return (
     <BrowserRouter>
@@ -23,25 +32,25 @@ function App() {
         {/* Public Routes */}
         <Route 
           path="/login" 
-          element={user ? <Navigate to={user.role === "admin" ? "/admin" : user.role === "kader" ? "/kader" : user.role === "orangtua" ? "/orangtua" : "/dashboard"} replace /> : <Login />} 
+          element={user ? <Navigate to={getRedirectPath(user.role)} replace /> : <Login />} 
         />
         <Route 
-          path="/admin.login" 
+          path="/admin-login" 
           element={user ? <Navigate to={user.role === "admin" ? "/admin" : "/"} replace /> : <AdminLogin />} 
         />
         <Route 
           path="/register" 
-          element={user ? <Navigate to={user.role === "admin" ? "/admin" : user.role === "kader" ? "/kader" : user.role === "orangtua" ? "/orangtua" : "/dashboard"} replace /> : <Register />} 
+          element={user ? <Navigate to={getRedirectPath(user.role)} replace /> : <Register />} 
         />
         <Route 
           path="/forgot-password" 
-          element={user ? <Navigate to={user.role === "admin" ? "/admin" : user.role === "kader" ? "/kader" : user.role === "orangtua" ? "/orangtua" : "/dashboard"} replace /> : <ForgotPassword />} 
+          element={user ? <Navigate to={getRedirectPath(user.role)} replace /> : <ForgotPassword />} 
         />
 
         {/* Home redirects based on user role */}
         <Route 
           path="/" 
-          element={user ? <Navigate to={user.role === "admin" ? "/admin" : user.role === "kader" ? "/kader" : user.role === "orangtua" ? "/orangtua" : "/dashboard"} replace /> : <Home />} 
+          element={user ? <Navigate to={getRedirectPath(user.role)} replace /> : <Home />} 
         />
 
         {/* Protected Routes */}
@@ -77,6 +86,15 @@ function App() {
           element={
             <ProtectedRoute requiredRoles={["orangtua"]}>
               <OrangtuaDashboard />
+            </ProtectedRoute>
+          } 
+        />
+
+        <Route 
+          path="/verifikator" 
+          element={
+            <ProtectedRoute requiredRoles={["verifikator"]}>
+              <VerifikatorDashboard />
             </ProtectedRoute>
           } 
         />

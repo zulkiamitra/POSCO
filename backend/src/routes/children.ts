@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { requireAuth } from "../middleware/auth";
+import { requireRoles } from "../middleware/authorize";
 import {
   createChild,
   deleteChild,

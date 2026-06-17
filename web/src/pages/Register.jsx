@@ -2,13 +2,15 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useNotification } from "../context/NotificationContext";
+import { api } from "../utils/api";
 import logo from "../assets/POSCO_LOGO_KITA.png";
 
 export default function Register() {
-  const { register } = useAuth();
+  const { register, logout } = useAuth();
   const navigate = useNavigate();
   const { success, error: errorNotify } = useNotification();
   const [role, setRole] = useState("orangtua");
+  
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -16,7 +18,13 @@ export default function Register() {
     confirmPassword: "",
     nik: "",
     phone: "",
-    wilayah: ""
+    wilayah: "Posyandu Melati - Kec. Padang Timur",
+    kaderCategory: "Bidan",
+    sik: "",
+    tahunBergabung: "",
+    childName: "",
+    childBirthDate: "",
+    alamat: "",
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -105,12 +113,47 @@ export default function Register() {
       wilayah: formData.wilayah
     };
 
-    register(userData);
-    success("✓ Pendaftaran berhasil! Silakan login");
-    setTimeout(() => {
-      navigate("/dashboard");
-    }, 500);
-    setLoading(false);
+    try {
+      await register(userData);
+      if (role === "kader") {
+        // Clear login session since kader requires admin approval
+        await logout();
+        success("✓ Pendaftaran kader berhasil! Silakan menunggu verifikasi admin.");
+        setTimeout(() => {
+          navigate("/login");
+        }, 1500);
+      } else {
+        if (formData.childName) {
+          try {
+            await api.createChild({
+              nama: formData.childName,
+              namaIbu: formData.name,
+              tanggalLahir: formData.childBirthDate ? formData.childBirthDate : null,
+              jenisKelamin: null,
+              beratLahir: null,
+              tinggiBadan: null,
+              beratBadan: null,
+              statusGizi: "Normal",
+              statusStunting: "Normal",
+              posyandu: formData.wilayah
+            }, []);
+          } catch (childErr) {
+            console.error("Gagal mendaftarkan data anak:", childErr);
+          }
+        }
+        success("✓ Pendaftaran berhasil! Selamat datang");
+        setTimeout(() => {
+          const routes = { admin: "/admin", kader: "/kader", orangtua: "/orangtua", verifikator: "/verifikator" };
+          navigate(routes[role] || "/orangtua");
+        }, 500);
+      }
+    } catch (err) {
+      const msg = err.message || "Pendaftaran gagal disimpan ke database";
+      setError(msg);
+      errorNotify("⚠️ " + msg);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -465,6 +508,269 @@ export default function Register() {
             />
           </div>
 
+          {/* Kader Specific Fields */}
+          {role === "kader" && (
+            <>
+              {/* Info Box Kader */}
+              <div style={{
+                padding: "12px 14px",
+                background: "#EDE9FE",
+                borderRadius: "12px",
+                border: "1px solid #DDD6FE",
+                marginBottom: 16,
+                display: "flex",
+                gap: 10,
+                alignItems: "flex-start",
+                boxSizing: "border-box"
+              }}>
+                <span style={{ fontSize: 16, color: "#7C3AED" }}>🛡️</span>
+                <p style={{ fontSize: 12, color: "#6D28D9", margin: 0, lineHeight: 1.5 }}>
+                  Khusus kader: Akun memerlukan verifikasi admin sebelum dapat mengakses aplikasi.
+                </p>
+              </div>
+
+              {/* Posyandu Tempat Bekerja */}
+              <div style={{ marginBottom: 16 }}>
+                <label style={{ fontSize: 12, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>
+                  POSYANDU TEMPAT BEKERJA
+                </label>
+                <select
+                  name="wilayah"
+                  value={formData.wilayah}
+                  onChange={handleChange}
+                  style={{
+                    width: "100%",
+                    padding: "12px 14px",
+                    borderRadius: 10,
+                    border: "1.5px solid #E5E7EB",
+                    fontSize: 14,
+                    outline: "none",
+                    boxSizing: "border-box",
+                    fontFamily: "inherit",
+                    background: "#fff",
+                  }}
+                >
+                  {[
+                    "Posyandu Melati - Kec. Padang Timur",
+                    "Posyandu Kenanga - Kec. Padang Utara",
+                    "Posyandu Anggrek - Kec. Kuranji",
+                    "Posyandu Mawar - Kec. Padang Barat"
+                  ].map((p, idx) => (
+                    <option key={idx} value={p}>{p}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Kategori / Jabatan */}
+              <div style={{ marginBottom: 16 }}>
+                <label style={{ fontSize: 12, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>
+                  KATEGORI / JABATAN
+                </label>
+                <select
+                  name="kaderCategory"
+                  value={formData.kaderCategory}
+                  onChange={handleChange}
+                  style={{
+                    width: "100%",
+                    padding: "12px 14px",
+                    borderRadius: 10,
+                    border: "1.5px solid #E5E7EB",
+                    fontSize: 14,
+                    outline: "none",
+                    boxSizing: "border-box",
+                    fontFamily: "inherit",
+                    background: "#fff",
+                  }}
+                >
+                  {["Bidan", "Perawat", "Ahli Gizi", "Kader Kesehatan"].map((cat, idx) => (
+                    <option key={idx} value={cat}>{cat}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Nomor SIK / STR / Lisensi */}
+              <div style={{ marginBottom: 16 }}>
+                <label style={{ fontSize: 12, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>
+                  NOMOR SIK / STR / LISENSI
+                </label>
+                <input
+                  type="text"
+                  name="sik"
+                  value={formData.sik}
+                  onChange={handleChange}
+                  placeholder="Nomor SIK / STR / Lisensi"
+                  style={{
+                    width: "100%",
+                    padding: "12px 14px",
+                    borderRadius: 10,
+                    border: "1.5px solid #E5E7EB",
+                    fontSize: 14,
+                    outline: "none",
+                    boxSizing: "border-box",
+                    fontFamily: "inherit",
+                    background: "#fff",
+                  }}
+                />
+              </div>
+
+              {/* Tahun Bergabung */}
+              <div style={{ marginBottom: 20 }}>
+                <label style={{ fontSize: 12, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>
+                  TAHUN BERGABUNG
+                </label>
+                <input
+                  type="number"
+                  name="tahunBergabung"
+                  value={formData.tahunBergabung}
+                  onChange={handleChange}
+                  placeholder="Pilih Tahun Bergabung (Contoh: 2026)"
+                  min="1950"
+                  max={new Date().getFullYear()}
+                  style={{
+                    width: "100%",
+                    padding: "12px 14px",
+                    borderRadius: 10,
+                    border: "1.5px solid #E5E7EB",
+                    fontSize: 14,
+                    outline: "none",
+                    boxSizing: "border-box",
+                    fontFamily: "inherit",
+                    background: "#fff",
+                  }}
+                />
+              </div>
+            </>
+          )}
+
+          {/* Orang Tua Specific Fields */}
+          {role === "orangtua" && (
+            <>
+              {/* Info Box Orang Tua */}
+              <div style={{
+                padding: "12px 14px",
+                background: "#EFF6FF",
+                borderRadius: "12px",
+                border: "1px solid #BFDBFE",
+                marginBottom: 16,
+                display: "flex",
+                gap: 10,
+                alignItems: "flex-start",
+                boxSizing: "border-box"
+              }}>
+                <span style={{ fontSize: 16, color: "#1D4ED8" }}>✓</span>
+                <p style={{ fontSize: 12, color: "#1E3A8A", margin: 0, lineHeight: 1.5 }}>
+                  Pendaftaran langsung aktif: Bisa login dan akses aplikasi segera setelah daftar.
+                </p>
+              </div>
+
+              {/* Nama Lengkap Anak */}
+              <div style={{ marginBottom: 16 }}>
+                <label style={{ fontSize: 12, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>
+                  NAMA LENGKAP ANAK
+                </label>
+                <input
+                  type="text"
+                  name="childName"
+                  value={formData.childName}
+                  onChange={handleChange}
+                  placeholder="Nama Lengkap Anak"
+                  style={{
+                    width: "100%",
+                    padding: "12px 14px",
+                    borderRadius: 10,
+                    border: "1.5px solid #E5E7EB",
+                    fontSize: 14,
+                    outline: "none",
+                    boxSizing: "border-box",
+                    fontFamily: "inherit",
+                    background: "#fff",
+                  }}
+                />
+              </div>
+
+              {/* Tanggal Lahir Anak */}
+              <div style={{ marginBottom: 16 }}>
+                <label style={{ fontSize: 12, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>
+                  TANGGAL LAHIR ANAK
+                </label>
+                <input
+                  type="date"
+                  name="childBirthDate"
+                  value={formData.childBirthDate}
+                  onChange={handleChange}
+                  style={{
+                    width: "100%",
+                    padding: "12px 14px",
+                    borderRadius: 10,
+                    border: "1.5px solid #E5E7EB",
+                    fontSize: 14,
+                    outline: "none",
+                    boxSizing: "border-box",
+                    fontFamily: "inherit",
+                    background: "#fff",
+                  }}
+                />
+              </div>
+
+              {/* Alamat Rumah Lengkap */}
+              <div style={{ marginBottom: 16 }}>
+                <label style={{ fontSize: 12, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>
+                  ALAMAT RUMAH LENGKAP
+                </label>
+                <input
+                  type="text"
+                  name="alamat"
+                  value={formData.alamat}
+                  onChange={handleChange}
+                  placeholder="Alamat Rumah Lengkap"
+                  style={{
+                    width: "100%",
+                    padding: "12px 14px",
+                    borderRadius: 10,
+                    border: "1.5px solid #E5E7EB",
+                    fontSize: 14,
+                    outline: "none",
+                    boxSizing: "border-box",
+                    fontFamily: "inherit",
+                    background: "#fff",
+                  }}
+                />
+              </div>
+
+              {/* Posyandu Terdekat dari Rumah */}
+              <div style={{ marginBottom: 20 }}>
+                <label style={{ fontSize: 12, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>
+                  POSYANDU TERDEKAT DARI RUMAH
+                </label>
+                <select
+                  name="wilayah"
+                  value={formData.wilayah}
+                  onChange={handleChange}
+                  style={{
+                    width: "100%",
+                    padding: "12px 14px",
+                    borderRadius: 10,
+                    border: "1.5px solid #E5E7EB",
+                    fontSize: 14,
+                    outline: "none",
+                    boxSizing: "border-box",
+                    fontFamily: "inherit",
+                    background: "#fff",
+                  }}
+                >
+                  {[
+                    "Posyandu Melati - Kec. Padang Timur",
+                    "Posyandu Kenanga - Kec. Padang Utara",
+                    "Posyandu Anggrek - Kec. Kuranji",
+                    "Posyandu Mawar - Kec. Padang Barat"
+                  ].map((p, idx) => (
+                    <option key={idx} value={p}>{p}</option>
+                  ))}
+                </select>
+              </div>
+            </>
+          )}
+
           {/* Error Message */}
           {error && (
             <div style={{
@@ -480,39 +786,95 @@ export default function Register() {
             </div>
           )}
 
-          {/* Submit Button */}
-          <button
-            type="submit"
-            disabled={loading}
-            style={{
-              width: "100%",
-              padding: "13px",
-              borderRadius: 10,
-              background: loading ? "#D1D5DB" : "linear-gradient(135deg, #16A34A 0%, #15803D 100%)",
-              color: "#fff",
-              border: "none",
-              fontSize: 15,
-              fontWeight: 600,
-              cursor: loading ? "not-allowed" : "pointer",
-              opacity: loading ? 0.7 : 1,
-              transition: "all 0.3s ease",
-              fontFamily: "inherit",
-              marginBottom: 12,
-              boxShadow: "0 8px 20px rgba(22, 163, 74, 0.25)",
-            }}
-            onMouseOver={(e) => {
-              if (!loading) {
-                e.target.style.transform = "translateY(-2px)";
-                e.target.style.boxShadow = "0 12px 28px rgba(22, 163, 74, 0.35)";
-              }
-            }}
-            onMouseOut={(e) => {
-              e.target.style.transform = "translateY(0)";
-              e.target.style.boxShadow = "0 8px 20px rgba(22, 163, 74, 0.25)";
-            }}
-          >
-            {loading ? "Mendaftarkan..." : "DAFTAR AKUN"}
-          </button>
+          {/* Submit Action */}
+          {role === "kader" ? (
+            <>
+              {/* Yellow Verification Box */}
+              <div style={{
+                width: "100%",
+                padding: "16px",
+                background: "#FEF3C7",
+                borderRadius: "12px",
+                border: "1px solid #FCD34D",
+                marginBottom: 16,
+                boxSizing: "border-box"
+              }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
+                  <span style={{ fontSize: "18px" }}>⏳</span>
+                  <span style={{ fontSize: "14px", fontWeight: 700, color: "#B45309" }}>Proses Verifikasi</span>
+                </div>
+                <p style={{ fontSize: "12px", color: "#92400E", margin: 0, lineHeight: 1.5 }}>
+                  Setelah daftar, akun Anda akan masuk status "PENDING VERIFICATION" selama 1-3 hari kerja. Admin posyandu akan memverifikasi data dan lisensi Anda.
+                </p>
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading}
+                style={{
+                  width: "100%",
+                  padding: "13px",
+                  borderRadius: 10,
+                  background: loading ? "#D1D5DB" : "linear-gradient(135deg, #D97706 0%, #B45309 100%)",
+                  color: "#fff",
+                  border: "none",
+                  fontSize: 15,
+                  fontWeight: 600,
+                  cursor: loading ? "not-allowed" : "pointer",
+                  opacity: loading ? 0.7 : 1,
+                  transition: "all 0.3s ease",
+                  fontFamily: "inherit",
+                  marginBottom: 12,
+                  boxShadow: "0 8px 20px rgba(217, 119, 6, 0.25)",
+                }}
+                onMouseOver={(e) => {
+                  if (!loading) {
+                    e.target.style.transform = "translateY(-2px)";
+                    e.target.style.boxShadow = "0 12px 28px rgba(217, 119, 6, 0.35)";
+                  }
+                }}
+                onMouseOut={(e) => {
+                  e.target.style.transform = "translateY(0)";
+                  e.target.style.boxShadow = "0 8px 20px rgba(217, 119, 6, 0.25)";
+                }}
+              >
+                {loading ? "Mendaftarkan..." : "Daftar (Menunggu Verifikasi Admin)"}
+              </button>
+            </>
+          ) : (
+            <button
+              type="submit"
+              disabled={loading}
+              style={{
+                width: "100%",
+                padding: "13px",
+                borderRadius: 10,
+                background: loading ? "#D1D5DB" : "linear-gradient(135deg, #16A34A 0%, #15803D 100%)",
+                color: "#fff",
+                border: "none",
+                fontSize: 15,
+                fontWeight: 600,
+                cursor: loading ? "not-allowed" : "pointer",
+                opacity: loading ? 0.7 : 1,
+                transition: "all 0.3s ease",
+                fontFamily: "inherit",
+                marginBottom: 12,
+                boxShadow: "0 8px 20px rgba(22, 163, 74, 0.25)",
+              }}
+              onMouseOver={(e) => {
+                if (!loading) {
+                  e.target.style.transform = "translateY(-2px)";
+                  e.target.style.boxShadow = "0 12px 28px rgba(22, 163, 74, 0.35)";
+                }
+              }}
+              onMouseOut={(e) => {
+                e.target.style.transform = "translateY(0)";
+                e.target.style.boxShadow = "0 8px 20px rgba(22, 163, 74, 0.25)";
+              }}
+            >
+              {loading ? "Mendaftarkan..." : "DAFTAR & LOGIN SEKARANG"}
+            </button>
+          )}
 
           {/* Login Link */}
           <p style={{ textAlign: "center", fontSize: 13, color: "#6B7280", margin: 0 }}>

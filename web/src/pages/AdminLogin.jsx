@@ -15,14 +15,19 @@ export default function AdminLogin() {
     e.preventDefault();
     setLoading(true);
     setError("");
-    await new Promise(r => setTimeout(r, 800));
-    const ok = login("admin", email, password);
-    if (ok) {
-      navigate("/admin");
-    } else {
-      setError("ID atau kata sandi tidak valid");
+    try {
+      await new Promise(r => setTimeout(r, 400));
+      const ok = await login("admin", email, password);
+      if (ok) {
+        navigate("/admin");
+      } else {
+        throw new Error("ID atau kata sandi tidak valid");
+      }
+    } catch (err) {
+      setError(err.message || "ID atau kata sandi tidak valid");
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   return (

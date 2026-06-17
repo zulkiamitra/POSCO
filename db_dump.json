@@ -1,0 +1,349 @@
+{
+  "children": [
+    {
+      "id": "cmpz1iomf0001dbpzgld9noy7",
+      "name": "kia",
+      "motherName": "mitra",
+      "birthDate": "2026-04-08T00:00:00.000Z",
+      "gender": "L",
+      "birthWeight": 4,
+      "height": 117,
+      "weight": 4,
+      "nutritionStatus": "Gizi Lebih",
+      "stuntingStatus": "Tidak Stunting",
+      "immunization": {
+        "bcg": false,
+        "hb0": false,
+        "dpt1": false,
+        "dpt2": false,
+        "polio": false,
+        "campak": false
+      },
+      "checkupHistory": [
+        {
+          "bb": 4,
+          "tb": 117,
+          "tanggal": "2026-06-04",
+          "statusGizi": "Gizi Lebih",
+          "lingkarKepala": 78,
+          "lingkarLengan": 12
+        }
+      ],
+      "posyanduId": "cmpyy6on800003rdafryooyo5",
+      "orangtuaId": null,
+      "createdAt": "2026-06-04T05:13:55.870Z",
+      "updatedAt": "2026-06-04T05:14:54.196Z"
+    },
+    {
+      "id": "cmpz393x100019g85nltdjhuz",
+      "name": "Sopi",
+      "motherName": "Ucok",
+      "birthDate": "2026-04-08T00:00:00.000Z",
+      "gender": "L",
+      "birthWeight": 3,
+      "height": 60,
+      "weight": 7,
+      "nutritionStatus": "Normal",
+      "stuntingStatus": "Normal",
+      "immunization": {
+        "bcg": false,
+        "hb0": false,
+        "dpt1": false,
+        "dpt2": false,
+        "polio": false,
+        "campak": false
+      },
+      "checkupHistory": [
+        {
+          "arm": "12 cm",
+          "date": "11 Juni 2026",
+          "note": "bagus sekali",
+          "height": "60 cm",
+          "status": "Normal",
+          "weight": "7 kg",
+          "location": "Posyandu Melati - Kec. Padang Timur",
+          "services": [
+            "+ VITAMIN A",
+            "+ VITAMIN D",
+            "+ KALSIUM"
+          ],
+          "headCircumference": "12 cm"
+        },
+        {
+          "bb": 6,
+          "tb": 87,
+          "tanggal": "2026-06-08",
+          "statusGizi": "Normal",
+          "lingkarKepala": 66,
+          "lingkarLengan": 12
+        }
+      ],
+      "posyanduId": "cmpyy6on800003rdafryooyo5",
+      "orangtuaId": "a0a18ebd-3f1f-465d-8d4f-0e2181290b4e",
+      "createdAt": "2026-06-04T06:02:28.501Z",
+      "updatedAt": "2026-06-10T17:41:22.624Z"
+    },
+    {
+      "id": "cmpz3943900039g85vq0mwyqm",
+      "name": "Sopi",
+      "motherName": "Ucok",
+      "birthDate": "2026-04-07T17:00:00.000Z",
+      "gender": "L",
+      "birthWeight": 3,
+      "height": 111.7,
+      "weight": 3,
+      "nutritionStatus": "Normal",
+      "stuntingStatus": "Tidak Stunting",
+      "immunization": {
+        "bcg": false,
+        "hb0": false,
+        "dpt1": false,
+        "dpt2": false,
+        "polio": false,
+        "campak": false
+      },
+      "checkupHistory": [],
+      "posyanduId": "cmpyy6on800003rdafryooyo5",
+      "orangtuaId": "a0a18ebd-3f1f-465d-8d4f-0e2181290b4e",
+      "createdAt": "2026-06-04T06:02:28.725Z",
+      "updatedAt": "2026-06-11T02:48:51.452Z"
+    },
+    {
+      "id": "cmq8x0xju000313nil7srps4y",
+      "name": "Rama",
+      "motherName": "Ucok",
+      "birthDate": "2026-02-04T00:00:00.000Z",
+      "gender": "Laki-laki",
+      "birthWeight": 0,
+      "height": 70,
+      "weight": 12,
+      "nutritionStatus": "Gizi Kurang",
+      "stuntingStatus": "Normal",
+      "immunization": {
+        "bcg": false,
+        "hb0": false,
+        "dpt1": false,
+        "dpt2": false,
+        "polio": false,
+        "campak": false
+      },
+      "checkupHistory": [
+        {
+          "bb": 12,
+          "tb": 70,
+          "tanggal": "2026-06-11",
+          "statusGizi": "Gizi Kurang",
+          "lingkarKepala": 23,
+          "lingkarLengan": 25
+        }
+      ],
+      "posyanduId": null,
+      "orangtuaId": "a0a18ebd-3f1f-465d-8d4f-0e2181290b4e",
+      "createdAt": "2026-06-11T03:05:51.066Z",
+      "updatedAt": "2026-06-11T06:54:05.839Z"
+    },
+    {
+      "id": "cmq95n5ci0002ng9solaosd8g",
+      "name": "Hanifa",
+      "motherName": "Milla",
+      "birthDate": "2025-06-03T17:00:00.000Z",
+      "gender": "Laki-laki",
+      "birthWeight": null,
+      "height": null,
+      "weight": null,
+      "nutritionStatus": "Normal",
+      "stuntingStatus": "Normal",
+      "immunization": null,
+      "checkupHistory": null,
+      "posyanduId": null,
+      "orangtuaId": null,
+      "createdAt": "2026-06-11T07:07:04.531Z",
+      "updatedAt": "2026-06-11T07:07:04.531Z"
+    },
+    {
+      "id": "cmq95qi300004ng9sm8lhpgmf",
+      "name": "Nanda",
+      "motherName": "Ucok",
+      "birthDate": "2025-10-06T17:00:00.000Z",
+      "gender": "Laki-laki",
+      "birthWeight": null,
+      "height": 120,
+      "weight": 40,
+      "nutritionStatus": "Stunting",
+      "stuntingStatus": "Stunting",
+      "immunization": null,
+      "checkupHistory": [
+        {
+          "arm": "12 cm",
+          "date": "11 Juni 2026",
+          "note": "Sangat bagus ibukkk",
+          "height": "120 cm",
+          "status": "Stunting",
+          "weight": "40 kg",
+          "location": "Posyandu Melati - Kec. Padang Timur",
+          "services": [
+            "+ VITAMIN A",
+            "+ VITAMIN D",
+            "+ VITAMIN C",
+            "+ ZINC",
+            "+ OBAT CACING"
+          ],
+          "headCircumference": "16 cm"
+        }
+      ],
+      "posyanduId": null,
+      "orangtuaId": "a0a18ebd-3f1f-465d-8d4f-0e2181290b4e",
+      "createdAt": "2026-06-11T07:09:41.005Z",
+      "updatedAt": "2026-06-11T07:14:17.999Z"
+    },
+    {
+      "id": "cmq96uywx0000n8ch8fr1kvyf",
+      "name": "Ronaldo",
+      "motherName": "Kaka",
+      "birthDate": "2026-05-13T17:00:00.000Z",
+      "gender": "Perempuan",
+      "birthWeight": 0,
+      "height": 198,
+      "weight": 90,
+      "nutritionStatus": "Normal",
+      "stuntingStatus": "Normal",
+      "immunization": {
+        "bcg": false,
+        "hb0": false,
+        "dpt1": false,
+        "dpt2": false,
+        "polio": false,
+        "campak": false
+      },
+      "checkupHistory": [
+        {
+          "arm": "66 cm",
+          "date": "11 Juni 2026",
+          "note": "Meningkat nih",
+          "height": "198 cm",
+          "status": "Normal",
+          "weight": "90 kg",
+          "location": "Posyandu Melati - Kec. Padang Timur",
+          "services": [
+            "+ VITAMIN A",
+            "+ OBAT CACING"
+          ],
+          "headCircumference": "44 cm"
+        },
+        {
+          "arm": "24 cm",
+          "date": "11 Juni 2026",
+          "note": "menurun",
+          "height": "176 cm",
+          "status": "Normal",
+          "weight": "77 kg",
+          "location": "Posyandu Melati - Kec. Padang Timur",
+          "services": [
+            "+ VITAMIN A",
+            "+ ZAT BESI",
+            "+ VITAMIN D",
+            "+ KALSIUM",
+            "+ OBAT CACING"
+          ],
+          "headCircumference": "55 cm"
+        }
+      ],
+      "posyanduId": null,
+      "orangtuaId": null,
+      "createdAt": "2026-06-11T07:41:09.058Z",
+      "updatedAt": "2026-06-11T07:45:26.770Z"
+    }
+  ],
+  "sessions": [
+    {
+      "id": "cmpz1ml710003dbpz7py2l8ov",
+      "date": "2026-06-07T00:00:00.000Z",
+      "timeRange": "13:30 - 12:00",
+      "attendanceCount": 0,
+      "status": "Mendatang",
+      "kaderName": "Siti Rahayu",
+      "posyanduId": null,
+      "createdAt": "2026-06-04T05:16:58.069Z",
+      "updatedAt": "2026-06-04T05:16:58.069Z",
+      "posyandu": null
+    },
+    {
+      "id": "cmq50qiuq0001cr52io3mm8sk",
+      "date": "2026-06-29T00:00:00.000Z",
+      "timeRange": "08:00 - 12:00",
+      "attendanceCount": 0,
+      "status": "Mendatang",
+      "kaderName": "Siti Rahayu",
+      "posyanduId": null,
+      "createdAt": "2026-06-08T09:38:39.209Z",
+      "updatedAt": "2026-06-08T09:38:39.209Z",
+      "posyandu": null
+    },
+    {
+      "id": "cmq8wj1qs000113ni46iy3tk5",
+      "date": "2026-06-27T00:00:00.000Z",
+      "timeRange": "08:00 - 12:00",
+      "attendanceCount": 0,
+      "status": "Mendatang",
+      "kaderName": "Siti Rahayu",
+      "posyanduId": "cmpyy6on800003rdafryooyo5",
+      "createdAt": "2026-06-11T02:51:56.574Z",
+      "updatedAt": "2026-06-11T02:51:56.574Z",
+      "posyandu": {
+        "id": "cmpyy6on800003rdafryooyo5",
+        "name": "Posyandu Melati",
+        "kecamatan": "Koto Tangah",
+        "kelurahan": "Batang Kabung Ganting",
+        "active": true,
+        "kaderName": "Siti Rahayu",
+        "createdAt": "2026-06-04T03:40:37.317Z",
+        "updatedAt": "2026-06-04T03:40:37.317Z"
+      }
+    },
+    {
+      "id": "cmq9594q90001ng9s0o4f58qy",
+      "date": "2026-06-25T00:00:00.000Z",
+      "timeRange": "08:00 - 12:00",
+      "attendanceCount": 0,
+      "status": "Mendatang",
+      "kaderName": "Siti Rahayu",
+      "posyanduId": null,
+      "createdAt": "2026-06-11T06:56:10.535Z",
+      "updatedAt": "2026-06-11T06:56:10.535Z",
+      "posyandu": null
+    },
+    {
+      "id": "cmq95u99c0005ng9s1f02oily",
+      "date": "2026-06-17T17:00:00.000Z",
+      "timeRange": "08:00 - 12:00",
+      "attendanceCount": 7,
+      "status": "Mendatang",
+      "kaderName": "Kia",
+      "posyanduId": null,
+      "createdAt": "2026-06-11T07:12:36.192Z",
+      "updatedAt": "2026-06-15T06:57:45.127Z",
+      "posyandu": null
+    },
+    {
+      "id": "cmqevuxq40002s7azxka19i58",
+      "date": "2026-06-22T00:00:00.000Z",
+      "timeRange": "09:00 - 12:00",
+      "attendanceCount": 0,
+      "status": "Mendatang",
+      "kaderName": "Siti Rahayu",
+      "posyanduId": "cmqevqgcm0000s7azfek6rawy",
+      "createdAt": "2026-06-15T07:19:48.796Z",
+      "updatedAt": "2026-06-15T07:19:48.796Z",
+      "posyandu": {
+        "id": "cmqevqgcm0000s7azfek6rawy",
+        "name": "Posyandu Mawar",
+        "kecamatan": "Padang Barat",
+        "kelurahan": "Air Tawar",
+        "active": true,
+        "kaderName": "Mitra",
+        "createdAt": "2026-06-15T07:16:19.520Z",
+        "updatedAt": "2026-06-15T07:16:19.520Z"
+      }
+    }
+  ]
+}

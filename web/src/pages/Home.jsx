@@ -1,13 +1,11 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { useNotification } from "../context/NotificationContext";
 import logo from "../assets/POSCO_LOGO_KITA.png";
 import heroImage from "../assets/hero.png";
 import bahanImage from "../assets/bahan.jpg";
 
 export default function Home() {
   const navigate = useNavigate();
-  const { info } = useNotification();
   const [animatedElements, setAnimatedElements] = useState(new Set());
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const observerRef = useRef(null);
@@ -1641,7 +1639,6 @@ export default function Home() {
               fontSize: 16,
               opacity: 0.95,
               marginBottom: 32,
-              opacity: 0,
             }}
             ref={(el) => {
               if (el && animatedElements.has(el)) {

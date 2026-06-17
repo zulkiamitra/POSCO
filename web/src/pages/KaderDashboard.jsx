@@ -1,28 +1,66 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useNotification } from "../context/NotificationContext";
-import EmptyState from "../components/EmptyState";
 import logo from "../assets/POSCO_LOGO_KITA.png";
-import { children, ibuHamil, jadwalSesi, rujukan, users } from "../data/dummyData";
+import { api } from "../utils/api";
 import { jsPDF } from "jspdf";
-import html2canvas from "html2canvas";
 
 export default function KaderDashboard() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const { success, error } = useNotification();
+  const { success, error: errorNotify } = useNotification();
   const [activePage, setActivePage] = useState("dashboard");
   const [showAddModal, setShowAddModal] = useState(null);
   const [selectedChild, setSelectedChild] = useState(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
-  const [jadwalSesiState, setJadwalSesiState] = useState(jadwalSesi);
-  const [rujukanState, setRujukanState] = useState(rujukan);
+  const [selectedIbu, setSelectedIbu] = useState(null);
+  const [showIbuDetailModal, setShowIbuDetailModal] = useState(false);
+  const [jadwalSesiState, setJadwalSesiState] = useState([]);
+  const [selectedSesi, setSelectedSesi] = useState(null);
+  const [showSesiDetailModal, setShowSesiDetailModal] = useState(false);
+  const [rujukanState, setRujukanState] = useState([]);
   const [selectedRujukan, setSelectedRujukan] = useState(null);
   const [showEditRujukanModal, setShowEditRujukanModal] = useState(false);
-  const [childrenData, setChildrenData] = useState(children);
+  const [childrenData, setChildrenData] = useState([]);
+  const [ibuHamilState, setIbuHamilState] = useState([]);
+  const [posyandus, setPosyandus] = useState([]);
+  const [usersState, setUsersState] = useState([]);
   const [showInputPemeriksaanModal, setShowInputPemeriksaanModal] = useState(false);
   const [childForInput, setChildForInput] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  const loadKaderData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const posList = await api.getPosyandus();
+      setPosyandus(posList);
+
+      const kids = await api.getChildren({}, posList);
+      setChildrenData(kids);
+
+      const pregs = await api.getPregnancies({}, posList);
+      setIbuHamilState(pregs);
+
+      const sessions = await api.getSessions({}, posList);
+      setJadwalSesiState(sessions);
+
+      const refs = await api.getReferrals();
+      setRujukanState(refs);
+
+      const uList = await api.getUsers();
+      setUsersState(uList);
+    } catch (err) {
+      console.error("Gagal memuat data kader:", err);
+      errorNotify("⚠️ Gagal memuat data dari server");
+    } finally {
+      setLoading(false);
+    }
+  }, [errorNotify]);
+
+  useEffect(() => {
+    loadKaderData();
+  }, [loadKaderData]);
 
   const handleLogout = () => {
     logout();
@@ -192,9 +230,27 @@ export default function KaderDashboard() {
           </div>
 
           {/* Content Pages */}
-          {activePage === "dashboard" && <DashboardPage user={user} childrenData={childrenData} onInputClick={(child) => { setChildForInput(child); setShowInputPemeriksaanModal(true); }} />}
-          {activePage === "data-warga" && <DataWargaPage childrenData={childrenData} setShowModal={setShowAddModal} setSelectedChild={setSelectedChild} setShowDetailModal={setShowDetailModal} />}
-          {activePage === "jadwal" && <JadwalPage jadwalSesi={jadwalSesiState} />}
+          {activePage === "dashboard" && <DashboardPage user={user} childrenData={childrenData} onInputClick={(child) => { setChildForInput(child); setShowInputPemeriksaanModal(true); }} childrenCount={childrenData.length} pregnanciesCount={ibuHamilState.length} sessionsList={jadwalSesiState} referralsList={rujukanState} />}
+          {activePage === "data-warga" && (
+            <DataWargaPage 
+              childrenData={childrenData} 
+              ibuHamilData={ibuHamilState} 
+              setShowModal={setShowAddModal} 
+              setSelectedChild={setSelectedChild} 
+              setShowDetailModal={setShowDetailModal}
+              setSelectedIbu={setSelectedIbu}
+              setShowIbuDetailModal={setShowIbuDetailModal}
+            />
+          )}
+          {activePage === "jadwal" && (
+            <JadwalPage 
+              jadwalSesi={jadwalSesiState} 
+              onSelectSession={(sesi) => {
+                setSelectedSesi(sesi);
+                setShowSesiDetailModal(true);
+              }} 
+            />
+          )}
           {activePage === "buat-sesi" && <BuatSesiPage setShowModal={setShowAddModal} />}
           {activePage === "tindak-lanjut" && <TindakLanjutPage rujukan={rujukanState} onEditRujukan={(r) => { setSelectedRujukan(r); setShowEditRujukanModal(true); }} />}
           {activePage === "riwayat" && <RiwayatPage childrenData={childrenData} />}
@@ -203,18 +259,47 @@ export default function KaderDashboard() {
 
       {/* Modals */}
       {showDetailModal && selectedChild && (
-        <DetailBalitaModal child={selectedChild} onClose={() => { setShowDetailModal(false); setSelectedChild(null); }} />
+        <DetailBalitaModal child={selectedChild} users={usersState} onClose={() => { setShowDetailModal(false); setSelectedChild(null); }} />
+      )}
+      {showIbuDetailModal && selectedIbu && (
+        <DetailIbuHamilModal ibu={selectedIbu} onClose={() => { setShowIbuDetailModal(false); setSelectedIbu(null); }} />
+      )}
+      {showSesiDetailModal && selectedSesi && (
+        <DetailSesiModal sesi={selectedSesi} onClose={() => { setShowSesiDetailModal(false); setSelectedSesi(null); }} />
       )}
       {showAddModal === "data-warga" && (
-        <AddDataModal onClose={() => setShowAddModal(null)} />
+        <AddDataModal 
+          onClose={() => setShowAddModal(null)} 
+          onSave={async (type, data) => {
+            try {
+              if (type === "balita") {
+                const created = await api.createChild(data, posyandus);
+                setChildrenData([...childrenData, created]);
+                success("✅ Data balita berhasil disimpan!");
+              } else {
+                const created = await api.createPregnancy(data, posyandus);
+                setIbuHamilState([...ibuHamilState, created]);
+                success("✅ Data ibu hamil berhasil disimpan!");
+              }
+              setShowAddModal(null);
+            } catch (err) {
+              errorNotify("⚠️ Gagal menyimpan data: " + err.message);
+            }
+          }}
+        />
       )}
       {showAddModal === "buat-sesi" && (
         <BuatSesiModal 
           onClose={() => setShowAddModal(null)} 
           jadwalSesiState={jadwalSesiState}
-          onSessionCreated={(newSesi) => {
-            setJadwalSesiState([...jadwalSesiState, newSesi]);
-            success("✅ Sesi berhasil dibuat! Jadwal telah ditambahkan ke sistem.");
+          onSessionCreated={async (newSesi) => {
+            try {
+              const created = await api.createSession(newSesi, posyandus);
+              setJadwalSesiState([...jadwalSesiState, created]);
+              success("✅ Sesi berhasil dibuat! Jadwal telah ditambahkan ke sistem.");
+            } catch (err) {
+              errorNotify("⚠️ Gagal membuat sesi: " + err.message);
+            }
           }}
         />
       )}
@@ -222,11 +307,16 @@ export default function KaderDashboard() {
         <EditRujukanModal 
           rujukan={selectedRujukan}
           onClose={() => { setShowEditRujukanModal(false); setSelectedRujukan(null); }}
-          onSave={(updatedRujukan) => {
-            setRujukanState(rujukanState.map(r => r.id === updatedRujukan.id ? updatedRujukan : r));
-            setShowEditRujukanModal(false);
-            setSelectedRujukan(null);
-            success("✅ Data tindak lanjut berhasil diperbarui!");
+          onSave={async (updatedRujukan) => {
+            try {
+              const updated = await api.updateReferral(updatedRujukan.id, updatedRujukan);
+              setRujukanState(rujukanState.map(r => r.id === updated.id ? updated : r));
+              setShowEditRujukanModal(false);
+              setSelectedRujukan(null);
+              success("✅ Data tindak lanjut berhasil diperbarui!");
+            } catch (err) {
+              errorNotify("⚠️ Gagal memperbarui rujukan: " + err.message);
+            }
           }}
         />
       )}
@@ -234,11 +324,16 @@ export default function KaderDashboard() {
         <InputPemeriksaanModal
           child={childForInput}
           onClose={() => { setShowInputPemeriksaanModal(false); setChildForInput(null); }}
-          onSave={(updatedChild) => {
-            setChildrenData(childrenData.map(c => c.id === updatedChild.id ? updatedChild : c));
-            setShowInputPemeriksaanModal(false);
-            setChildForInput(null);
-            success("✅ Data pemeriksaan berhasil disimpan!");
+          onSave={async (updatedChild) => {
+            try {
+              const res = await api.updateChild(updatedChild.id, updatedChild, posyandus);
+              setChildrenData(childrenData.map(c => c.id === res.id ? res : c));
+              setShowInputPemeriksaanModal(false);
+              setChildForInput(null);
+              success("✅ Data pemeriksaan berhasil disimpan!");
+            } catch (err) {
+              errorNotify("⚠️ Gagal menyimpan pemeriksaan: " + err.message);
+            }
           }}
         />
       )}
@@ -246,10 +341,102 @@ export default function KaderDashboard() {
   );
 }
 
-// ====== PAGES ======
+function DashboardPage({ user, childrenData, onInputClick, childrenCount, pregnanciesCount, sessionsList, referralsList }) {
+  const [hoveredBar, setHoveredBar] = useState(null);
+  const [hoveredPoint, setHoveredPoint] = useState(null);
 
-function DashboardPage({ user, childrenData, onInputClick }) {
-  const myChildren = childrenData.slice(0, 3);
+  // Aggregate Nutrition Status & Gender
+  const nutStats = { "Normal": 0, "Gizi Kurang": 0, "Gizi Lebih": 0, "Stunting": 0 };
+  let maleCount = 0;
+  let femaleCount = 0;
+  
+  childrenData.forEach(c => {
+    const status = (c.statusGizi || "Normal").trim();
+    if (status === "Normal") {
+      nutStats["Normal"]++;
+    } else if (status === "Gizi Kurang" || status === "Berisiko" || status === "Beresiko") {
+      nutStats["Gizi Kurang"]++;
+    } else if (status === "Gizi Lebih" || status === "Obesitas") {
+      nutStats["Gizi Lebih"]++;
+    } else if (status === "Stunting") {
+      nutStats["Stunting"]++;
+    } else {
+      const lower = status.toLowerCase();
+      if (lower.includes("normal")) {
+        nutStats["Normal"]++;
+      } else if (lower.includes("kurang") || lower.includes("risiko") || lower.includes("berisiko") || lower.includes("beresiko")) {
+        nutStats["Gizi Kurang"]++;
+      } else if (lower.includes("lebih") || lower.includes("obesitas")) {
+        nutStats["Gizi Lebih"]++;
+      } else if (lower.includes("stunting")) {
+        nutStats["Stunting"]++;
+      } else {
+        nutStats["Normal"]++;
+      }
+    }
+
+    if (c.jenisKelamin === "P" || c.jenisKelamin === "Perempuan") {
+      femaleCount++;
+    } else {
+      maleCount++;
+    }
+  });
+
+  const maxVal = Math.max(1, ...Object.values(nutStats));
+  const bars = Object.entries(nutStats).map(([label, val], i) => {
+    const barHeight = (val / maxVal) * 140;
+    const x = 50 + i * 90;
+    const y = 170 - barHeight;
+    const colors = [
+      "url(#greenGrad)",  // Normal
+      "url(#orangeGrad)", // Gizi Kurang
+      "url(#redGrad)",    // Gizi Lebih
+      "url(#purpleGrad)"  // Stunting
+    ];
+    return { label, val, x, y, height: barHeight, color: colors[i] };
+  });
+
+  const totalGender = maleCount + femaleCount;
+  const malePercent = totalGender > 0 ? (maleCount / totalGender) : 0.5;
+  const femalePercent = totalGender > 0 ? (femaleCount / totalGender) : 0.5;
+  
+  const radius = 55;
+  const circ = 2 * Math.PI * radius; // 345.575
+  const maleStroke = circ * malePercent;
+  const femaleStroke = circ * femalePercent;
+
+  // Sessions attendance trend (last 6 sessions)
+  const sortedSessions = [...sessionsList]
+    .sort((a, b) => new Date(a.tanggal).getTime() - new Date(b.tanggal).getTime())
+    .slice(-6);
+
+  const chartSessions = sortedSessions;
+
+  const trendWidth = 550;
+  const trendHeight = 220;
+  const padding = 35;
+  const chartW = trendWidth - 2 * padding;
+  const chartH = trendHeight - 2 * padding;
+  
+  const maxAttendance = Math.max(12, ...chartSessions.map(s => s.jumlahHadir || 0));
+  
+  const points = chartSessions.map((s, idx) => {
+    const x = padding + (idx / Math.max(1, chartSessions.length - 1)) * chartW;
+    const y = padding + chartH - ((s.jumlahHadir || 0) / maxAttendance) * chartH;
+    return {
+      x,
+      y,
+      val: s.jumlahHadir || 0,
+      label: new Date(s.tanggal).toLocaleDateString("id-ID", { day: "numeric", month: "short" }),
+      posyandu: s.posyandu || "Posyandu"
+    };
+  });
+  
+  const linePath = points.map((p, idx) => `${idx === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ");
+  const areaPath = points.length > 0
+    ? `${linePath} L ${points[points.length - 1].x} ${padding + chartH} L ${points[0].x} ${padding + chartH} Z`
+    : "";
+
   return (
     <div>
       {/* Welcome Card */}
@@ -265,120 +452,357 @@ function DashboardPage({ user, childrenData, onInputClick }) {
           Selamat Datang, {user?.name.split(" ")[0]}! 👋
         </h2>
         <p style={{ margin: 0, opacity: 0.9, fontSize: 16 }}>
-          📍 {user?.posyandu} • {new Date().toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long" })}
+          📍 {user?.posyandu || user?.wilayah || "Posyandu Melati"} • {new Date().toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long" })}
         </p>
       </div>
 
-      {/* Stats */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 32 }}>
-        {[
-          { label: "Balita Aktif", value: children.length, icon: "👶", color: "#3B82F6" },
-          { label: "Ibu Hamil", value: ibuHamil.length, icon: "🤰", color: "#F59E0B" },
-          { label: "Sesi Bulan Ini", value: 8, icon: "📅", color: "#8B5CF6" },
-          { label: "Rujukan Aktif", value: rujukan.filter(r => r.status !== "Selesai").length, icon: "🏥", color: "#EF4444" },
-        ].map((stat, i) => (
-          <div
-            key={i}
-            style={{
-              background: "#fff",
-              borderRadius: 12,
-              padding: 20,
-              border: "1px solid #E5E7EB",
-              boxShadow: "0 2px 8px rgba(0, 0, 0, 0.06)",
-              transition: "all 0.3s ease",
-              cursor: "pointer",
-            }}
-            onMouseOver={(e) => {
-              e.currentTarget.style.boxShadow = "0 8px 16px rgba(22, 163, 74, 0.12)";
-              e.currentTarget.style.transform = "translateY(-4px)";
-              e.currentTarget.style.borderColor = "#16A34A";
-            }}
-            onMouseOut={(e) => {
-              e.currentTarget.style.boxShadow = "0 2px 8px rgba(0, 0, 0, 0.06)";
-              e.currentTarget.style.transform = "translateY(0)";
-              e.currentTarget.style.borderColor = "#E5E7EB";
-            }}
-          >
-            <div style={{ fontSize: 24, marginBottom: 8 }}>{stat.icon}</div>
-            <div style={{ fontSize: 28, fontWeight: 700, color: "#111827" }}>{stat.value}</div>
-            <div style={{ fontSize: 12, color: "#6B7280" }}>{stat.label}</div>
+      {/* Grid containing Charts */}
+      <div style={{ display: "grid", gridTemplateColumns: "1.2fr 0.8fr", gap: 24, marginBottom: 24 }}>
+        {/* Nutrition Status Bar Chart */}
+        <div style={{
+          background: "#fff",
+          borderRadius: 16,
+          padding: 24,
+          border: "1px solid #E5E7EB",
+          boxShadow: "0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03)"
+        }}>
+          <h3 style={{ fontSize: 16, fontWeight: 700, color: "#111827", marginBottom: 16 }}>
+            📊 Status Gizi Balita
+          </h3>
+          <div style={{ position: "relative" }}>
+            <svg width="100%" height={220} viewBox="0 0 420 220">
+              <defs>
+                <linearGradient id="greenGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#10B981" />
+                  <stop offset="100%" stopColor="#047857" />
+                </linearGradient>
+                <linearGradient id="orangeGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#F59E0B" />
+                  <stop offset="100%" stopColor="#D97706" />
+                </linearGradient>
+                <linearGradient id="redGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#EF4444" />
+                  <stop offset="100%" stopColor="#B91C1C" />
+                </linearGradient>
+                <linearGradient id="purpleGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#8B5CF6" />
+                  <stop offset="100%" stopColor="#6D28D9" />
+                </linearGradient>
+              </defs>
+              
+              {/* Grid lines */}
+              {[0, 0.25, 0.5, 0.75, 1].map((ratio, idx) => {
+                const y = 30 + ratio * 130;
+                const gridVal = Math.round(maxVal * (1 - ratio));
+                return (
+                  <g key={idx}>
+                    <line x1="45" y1={y} x2={400} y2={y} stroke="#E5E7EB" strokeDasharray="3 3" />
+                    <text x="35" y={y + 4} textAnchor="end" style={{ fontSize: 10, fill: "#9CA3AF" }}>{gridVal}</text>
+                  </g>
+                );
+              })}
+              
+              {/* Bars */}
+              {bars.map((bar, idx) => {
+                const isHovered = hoveredBar === idx;
+                return (
+                  <g
+                    key={idx}
+                    onMouseEnter={() => setHoveredBar(idx)}
+                    onMouseLeave={() => setHoveredBar(null)}
+                    style={{ cursor: "pointer" }}
+                  >
+                    <rect
+                      x={bar.x}
+                      y={bar.y}
+                      width="40"
+                      height={Math.max(4, bar.height)}
+                      rx="6"
+                      ry="6"
+                      fill={bar.color}
+                      opacity={hoveredBar === null || isHovered ? 1 : 0.7}
+                      style={{ transition: "all 0.3s ease" }}
+                    />
+                    <text
+                      x={bar.x + 20}
+                      y={bar.y - 8}
+                      textAnchor="middle"
+                      style={{
+                        fontSize: 12,
+                        fontWeight: 700,
+                        fill: isHovered ? "#111827" : "#4B5563",
+                        transition: "all 0.2s ease",
+                        opacity: bar.val > 0 || isHovered ? 1 : 0
+                      }}
+                    >
+                      {bar.val}
+                    </text>
+                    <text
+                      x={bar.x + 20}
+                      y="190"
+                      textAnchor="middle"
+                      style={{
+                        fontSize: 10,
+                        fontWeight: 600,
+                        fill: isHovered ? "#111827" : "#6B7280"
+                      }}
+                    >
+                      {bar.label.split(" ")[0]}
+                    </text>
+                    <text
+                      x={bar.x + 20}
+                      y="205"
+                      textAnchor="middle"
+                      style={{
+                        fontSize: 8,
+                        fill: "#9CA3AF"
+                      }}
+                    >
+                      {bar.label.split(" ").slice(1).join(" ")}
+                    </text>
+                  </g>
+                );
+              })}
+              <line x1="45" y1="170" x2={400} y2="170" stroke="#9CA3AF" strokeWidth="1.5" />
+            </svg>
           </div>
-        ))}
-      </div>
-
-      {/* Recent Data */}
-      <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 24 }}>
-        <div style={{ background: "#fff", borderRadius: 12, padding: 24, border: "1px solid #E5E7EB", boxShadow: "0 2px 8px rgba(0, 0, 0, 0.06)" }}>
-          <h3 style={{ fontSize: 18, fontWeight: 700, margin: "0 0 16px", color: "#111827" }}>Balita Terbaru</h3>
-          {myChildren.map(c => (
-            <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 0", borderBottom: "1px solid #F3F4F6" }}>
-              <div style={{ fontSize: 20 }}>{c.jenisKelamin === "P" ? "👧" : "👦"}</div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 600, fontSize: 13 }}>{c.nama}</div>
-                <div style={{ fontSize: 12, color: "#6B7280" }}>{c.beratBadan}kg • {c.tinggiBadan}cm</div>
-              </div>
-              <button 
-                onClick={() => onInputClick(c)}
-                style={{
-                padding: "5px 12px",
-                borderRadius: 6,
-                border: "1px solid #16A34A",
-                background: "#F0FDF4",
-                color: "#16A34A",
-                cursor: "pointer",
-                fontSize: 11,
-                fontWeight: 600,
-                transition: "all 0.2s ease"
-              }}
-                onMouseOver={(e) => {
-                  e.target.style.background = "#E8F5E9";
-                }}
-                onMouseOut={(e) => {
-                  e.target.style.background = "#F0FDF4";
-                }}
-              >
-                Input
-              </button>
-            </div>
-          ))}
         </div>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          <div style={{ background: "#fff", borderRadius: 12, padding: 20, border: "1px solid #E5E7EB", boxShadow: "0 2px 8px rgba(0, 0, 0, 0.06)" }}>
-            <h3 style={{ fontSize: 14, fontWeight: 700, margin: "0 0 12px", color: "#111827" }}>Jadwal Mendatang</h3>
-            {jadwalSesi.filter(j => j.status === "Mendatang").slice(0, 2).map(j => (
-              <div key={j.id} style={{
-                background: "#F0FDF4",
-                borderRadius: 8,
-                padding: "10px 12px",
-                marginBottom: 8,
-                fontSize: 12,
-                color: "#16A34A",
-                fontWeight: 600
-              }}>
-                📅 {new Date(j.tanggal).toLocaleDateString("id-ID", { day: "numeric", month: "short" })}
+        {/* Gender Distribution Donut Chart */}
+        <div style={{
+          background: "#fff",
+          borderRadius: 16,
+          padding: 24,
+          border: "1px solid #E5E7EB",
+          boxShadow: "0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03)",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center"
+        }}>
+          <h3 style={{ fontSize: 16, fontWeight: 700, color: "#111827", marginBottom: 16, width: "100%", textAlign: "left" }}>
+            👫 Distribusi Gender Balita
+          </h3>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16, width: "100%" }}>
+            <div style={{ position: "relative", width: 140, height: 140 }}>
+              <svg width="100%" height="100%" viewBox="0 0 200 200">
+                <circle
+                  cx="100"
+                  cy="100"
+                  r={radius}
+                  fill="transparent"
+                  stroke="#E5E7EB"
+                  strokeWidth="20"
+                />
+                {totalGender > 0 && (
+                  <>
+                    <circle
+                      cx="100"
+                      cy="100"
+                      r={radius}
+                      fill="transparent"
+                      stroke="#3B82F6"
+                      strokeWidth="20"
+                      strokeDasharray={`${maleStroke} ${circ}`}
+                      strokeDashoffset="0"
+                      transform="rotate(-90 100 100)"
+                      style={{ transition: "stroke-dasharray 0.5s ease" }}
+                    />
+                    <circle
+                      cx="100"
+                      cy="100"
+                      r={radius}
+                      fill="transparent"
+                      stroke="#EC4899"
+                      strokeWidth="20"
+                      strokeDasharray={`${femaleStroke} ${circ}`}
+                      strokeDashoffset={-maleStroke}
+                      transform="rotate(-90 100 100)"
+                      style={{ transition: "stroke-dasharray 0.5s ease" }}
+                    />
+                  </>
+                )}
+                <circle cx="100" cy="100" r="45" fill="#fff" />
+                <text x="100" y="92" textAnchor="middle" style={{ fontSize: 11, fill: "#9CA3AF", fontWeight: 600 }}>TOTAL</text>
+                <text x="100" y="118" textAnchor="middle" style={{ fontSize: 24, fill: "#111827", fontWeight: 800 }}>{totalGender}</text>
+              </svg>
+            </div>
+            
+            <div style={{ display: "flex", width: "100%", justifyContent: "space-around", gap: 8 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <div style={{ width: 12, height: 12, borderRadius: "50%", background: "#3B82F6" }} />
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "#374151" }}>
+                    {maleCount} <span style={{ fontSize: 11, fontWeight: 500, color: "#6B7280" }}>({totalGender > 0 ? Math.round((maleCount / totalGender) * 100) : 0}%)</span>
+                  </div>
+                  <div style={{ fontSize: 10, color: "#6B7280" }}>Laki-laki</div>
+                </div>
               </div>
-            ))}
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <div style={{ width: 12, height: 12, borderRadius: "50%", background: "#EC4899" }} />
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "#374151" }}>
+                    {femaleCount} <span style={{ fontSize: 11, fontWeight: 500, color: "#6B7280" }}>({totalGender > 0 ? Math.round((femaleCount / totalGender) * 100) : 0}%)</span>
+                  </div>
+                  <div style={{ fontSize: 10, color: "#6B7280" }}>Perempuan</div>
+                </div>
+              </div>
+            </div>
           </div>
+        </div>
+      </div>
 
-          <div style={{ background: "#FEF3C7", borderRadius: 12, padding: 16, border: "1px solid #FCD34D", boxShadow: "0 2px 8px rgba(245, 158, 11, 0.1)" }}>
-            <div style={{ fontWeight: 700, color: "#92400E", marginBottom: 8 }}>ℹ️ Info Penting</div>
-            <p style={{ fontSize: 12, color: "#92400E", margin: 0, lineHeight: 1.5 }}>
-              Pastikan semua data balita dan ibu hamil selalu ter-update untuk hasil monitoring yang akurat.
-            </p>
-          </div>
+      {/* Session attendance trends */}
+      <div style={{
+        background: "#fff",
+        borderRadius: 16,
+        padding: 24,
+        border: "1px solid #E5E7EB",
+        boxShadow: "0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03)",
+        marginBottom: 24
+      }}>
+        <h3 style={{ fontSize: 16, fontWeight: 700, color: "#111827", marginBottom: 16 }}>
+          📈 Tren Kehadiran Sesi Posyandu (6 Sesi Terakhir)
+        </h3>
+        <div style={{ position: "relative" }}>
+          {chartSessions.length > 0 ? (
+            <svg width="100%" height={220} viewBox={`0 0 ${trendWidth} ${trendHeight}`}>
+              <defs>
+                <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#10B981" stopOpacity="0.4" />
+                  <stop offset="100%" stopColor="#10B981" stopOpacity="0.0" />
+                </linearGradient>
+              </defs>
+              
+              {/* Horizontal dashed lines */}
+              {[0, 0.25, 0.5, 0.75, 1].map((ratio, idx) => {
+                const y = padding + ratio * chartH;
+                const gridVal = Math.round(maxAttendance * (1 - ratio));
+                return (
+                  <g key={idx}>
+                    <line x1={padding} y1={y} x2={trendWidth - padding} y2={y} stroke="#E5E7EB" strokeDasharray="3 3" />
+                    <text x={padding - 10} y={y + 4} textAnchor="end" style={{ fontSize: 10, fill: "#9CA3AF" }}>{gridVal}</text>
+                  </g>
+                );
+              })}
+              
+              {/* Area fill */}
+              {areaPath && (
+                <path d={areaPath} fill="url(#areaGrad)" />
+              )}
+              
+              {/* Line */}
+              {linePath && (
+                <path d={linePath} fill="none" stroke="#10B981" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+              )}
+              
+              {/* Points */}
+              {points.map((p, idx) => {
+                const isHovered = hoveredPoint === idx;
+                return (
+                  <g
+                    key={idx}
+                    onMouseEnter={() => setHoveredPoint(idx)}
+                    onMouseLeave={() => setHoveredPoint(null)}
+                    style={{ cursor: "pointer" }}
+                  >
+                    <circle
+                      cx={p.x}
+                      cy={p.y}
+                      r={isHovered ? 10 : 0}
+                      fill="#10B981"
+                      opacity="0.3"
+                      style={{ transition: "r 0.2s ease" }}
+                    />
+                    <circle
+                      cx={p.x}
+                      cy={p.y}
+                      r={isHovered ? 6 : 4}
+                      fill="#fff"
+                      stroke="#10B981"
+                      strokeWidth="3"
+                      style={{ transition: "all 0.2s ease" }}
+                    />
+                    <text
+                      x={p.x}
+                      y={p.y - 12}
+                      textAnchor="middle"
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 700,
+                        fill: "#047857",
+                        opacity: isHovered ? 1 : 0,
+                        transition: "opacity 0.2s ease"
+                      }}
+                    >
+                      {p.val} Anak
+                    </text>
+                    <text
+                      x={p.x}
+                      y={padding + chartH + 18}
+                      textAnchor="middle"
+                      style={{
+                        fontSize: 10,
+                        fontWeight: 600,
+                        fill: isHovered ? "#111827" : "#6B7280"
+                      }}
+                    >
+                      {p.label}
+                    </text>
+                    <text
+                      x={p.x}
+                      y={padding + chartH + 30}
+                      textAnchor="middle"
+                      style={{
+                        fontSize: 8,
+                        fill: "#9CA3AF"
+                      }}
+                    >
+                      {p.posyandu}
+                    </text>
+                  </g>
+                );
+              })}
+            </svg>
+          ) : (
+            <div style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              height: 220,
+              background: "#F9FAFB",
+              borderRadius: 12,
+              border: "1px dashed #E5E7EB",
+              color: "#6B7280",
+              fontSize: 14
+            }}>
+              📅 Belum ada data sesi posyandu di database
+            </div>
+          )}
         </div>
       </div>
     </div>
   );
 }
 
-function DataWargaPage({ childrenData, setShowModal, setSelectedChild, setShowDetailModal }) {
+function DataWargaPage({ 
+  childrenData, 
+  ibuHamilData, 
+  setSelectedChild, 
+  setShowDetailModal,
+  setSelectedIbu,
+  setShowIbuDetailModal
+}) {
   const [tab, setTab] = useState("balita");
   
   const handleViewDetail = (child) => {
     setSelectedChild(child);
     setShowDetailModal(true);
+  };
+
+  const handleViewIbuDetail = (ibu) => {
+    setSelectedIbu(ibu);
+    setShowIbuDetailModal(true);
   };
   
   return (
@@ -433,7 +857,7 @@ function DataWargaPage({ childrenData, setShowModal, setSelectedChild, setShowDe
             </tr>
           </thead>
           <tbody>
-            {(tab === "balita" ? childrenData : ibuHamil).slice(0, 5).map((item, i) => (
+            {(tab === "balita" ? childrenData : ibuHamilData).slice(0, 5).map((item, i) => (
               <tr key={i} style={{ borderBottom: "1px solid #F3F4F6" }}>
                 <td style={{ padding: "16px", fontSize: 14, color: "#111827" }}>{item.nama}</td>
                 <td style={{ padding: "16px", fontSize: 14, color: "#6B7280" }}>{item.namaIbu || "-"}</td>
@@ -448,6 +872,8 @@ function DataWargaPage({ childrenData, setShowModal, setSelectedChild, setShowDe
                   }}>
                     {item.statusGizi || "Aktif"}
                   </span>
+                </td>
+                <td style={{ padding: "16px", textAlign: "center" }}>
                 </td>
                 <td style={{ padding: "16px", textAlign: "center" }}>
                   {tab === "balita" ? (
@@ -474,15 +900,17 @@ function DataWargaPage({ childrenData, setShowModal, setSelectedChild, setShowDe
                       Lihat Detail
                     </button>
                   ) : (
-                    <button style={{
-                      background: "none",
-                      border: "none",
-                      color: "#3B82F6",
-                      cursor: "pointer",
-                      fontSize: 12,
-                      fontWeight: 600,
-                      transition: "all 0.2s ease"
-                    }}
+                    <button 
+                      onClick={() => handleViewIbuDetail(item)}
+                      style={{
+                        background: "none",
+                        border: "none",
+                        color: "#3B82F6",
+                        cursor: "pointer",
+                        fontSize: 12,
+                        fontWeight: 600,
+                        transition: "all 0.2s ease"
+                      }}
                       onMouseOver={(e) => {
                         e.target.style.color = "#1D4ED8";
                         e.target.style.textDecoration = "underline";
@@ -492,7 +920,7 @@ function DataWargaPage({ childrenData, setShowModal, setSelectedChild, setShowDe
                         e.target.style.textDecoration = "none";
                       }}
                     >
-                      Lihat
+                      Lihat Detail
                     </button>
                   )}
                 </td>
@@ -505,7 +933,21 @@ function DataWargaPage({ childrenData, setShowModal, setSelectedChild, setShowDe
   );
 }
 
-function JadwalPage({ jadwalSesi }) {
+function JadwalPage({ jadwalSesi, onSelectSession }) {
+  // Helper to determine if a session has passed (before today's local date)
+  const getSessionStatus = (j) => {
+    if (!j.tanggal) return "Mendatang";
+    const parts = j.tanggal.split('-');
+    if (parts.length !== 3) return "Mendatang";
+    const sessionDate = new Date(parts[0], parts[1] - 1, parts[2]);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (sessionDate < today) {
+      return "Sudah Berlalu";
+    }
+    return j.status || "Mendatang";
+  };
+
   return (
     <div style={{
       background: "#fff",
@@ -515,34 +957,60 @@ function JadwalPage({ jadwalSesi }) {
       boxShadow: "0 2px 8px rgba(0, 0, 0, 0.06)"
     }}>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 16 }}>
-        {jadwalSesi.slice(0, 6).map(j => (
-          <div key={j.id} style={{
-            background: "linear-gradient(135deg, #F0FDF4 0%, #ECFDF5 100%)",
-            borderRadius: 12,
-            padding: 20,
-            border: "1px solid #DCFCE7"
-          }}>
-            <div style={{ fontSize: 18, fontWeight: 700, color: "#16A34A", marginBottom: 8 }}>
-              {j.posyandu}
+        {jadwalSesi.map(j => {
+          const isPast = getSessionStatus(j) === "Sudah Berlalu";
+          const cardBg = isPast 
+            ? "linear-gradient(135deg, #F9FAFB 0%, #F3F4F6 100%)" 
+            : "linear-gradient(135deg, #F0FDF4 0%, #ECFDF5 100%)";
+          const cardBorder = isPast ? "1px solid #E5E7EB" : "1px solid #DCFCE7";
+          const titleColor = isPast ? "#4B5563" : "#16A34A";
+          const badgeBg = isPast ? "#E5E7EB" : "#DCFCE7";
+          const badgeColor = isPast ? "#4B5563" : "#16A34A";
+          const displayStatus = isPast ? "Sudah Berlalu" : j.status;
+
+          return (
+            <div 
+              key={j.id} 
+              onClick={() => onSelectSession && onSelectSession(j)}
+              style={{
+                background: cardBg,
+                borderRadius: 12,
+                padding: 20,
+                border: cardBorder,
+                cursor: "pointer",
+                transition: "all 0.2s ease-in-out",
+              }}
+              onMouseOver={(e) => {
+                e.currentTarget.style.transform = "translateY(-3px)";
+                e.currentTarget.style.boxShadow = "0 8px 16px rgba(0,0,0,0.06)";
+              }}
+              onMouseOut={(e) => {
+                e.currentTarget.style.transform = "translateY(0)";
+                e.currentTarget.style.boxShadow = "none";
+              }}
+            >
+              <div style={{ fontSize: 18, fontWeight: 700, color: titleColor, marginBottom: 8 }}>
+                {j.posyandu}
+              </div>
+              <div style={{ fontSize: 14, color: "#374151", marginBottom: 12 }}>
+                📅 {new Date(j.tanggal).toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long" })}
+              </div>
+              <div style={{ fontSize: 14, color: "#374151", marginBottom: 12 }}>
+                ⏰ {j.waktu}
+              </div>
+              <span style={{
+                fontSize: 12,
+                padding: "4px 12px",
+                borderRadius: 20,
+                background: badgeBg,
+                color: badgeColor,
+                fontWeight: 600
+              }}>
+                {displayStatus}
+              </span>
             </div>
-            <div style={{ fontSize: 14, color: "#374151", marginBottom: 12 }}>
-              📅 {new Date(j.tanggal).toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long" })}
-            </div>
-            <div style={{ fontSize: 14, color: "#374151", marginBottom: 12 }}>
-              ⏰ {j.waktu}
-            </div>
-            <span style={{
-              fontSize: 12,
-              padding: "4px 12px",
-              borderRadius: 20,
-              background: j.status === "Mendatang" ? "#DCFCE7" : "#E0E7FF",
-              color: j.status === "Mendatang" ? "#16A34A" : "#4F46E5",
-              fontWeight: 600
-            }}>
-              {j.status}
-            </span>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
@@ -868,14 +1336,14 @@ function downloadPDF(child, parentInfo) {
   doc.setFontSize(10);
   let yPosition = 38;
   const data = [
-    ["Nama", child.nama],
+    ["Nama", child.nama || "-"],
     ["Jenis Kelamin", child.jenisKelamin === "P" ? "Perempuan" : "Laki-laki"],
-    ["Tanggal Lahir", new Date(child.tanggalLahir).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })],
-    ["Berat Badan", `${child.beratBadan} kg`],
-    ["Tinggi Badan", `${child.tinggiBadan} cm`],
-    ["Status Gizi", child.statusGizi],
-    ["Status Stunting", child.statusStunting],
-    ["Posyandu", child.posyandu],
+    ["Tanggal Lahir", child.tanggalLahir ? new Date(child.tanggalLahir).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" }) : "-"],
+    ["Berat Badan", `${child.beratBadan ?? 0} kg`],
+    ["Tinggi Badan", `${child.tinggiBadan ?? 0} cm`],
+    ["Status Gizi", child.statusGizi || "-"],
+    ["Status Stunting", child.statusStunting || "-"],
+    ["Posyandu", child.posyandu || "-"],
   ];
   
   data.forEach(([label, value]) => {
@@ -893,9 +1361,9 @@ function downloadPDF(child, parentInfo) {
   doc.setFont(undefined, "normal");
   if (parentInfo) {
     const parentData = [
-      ["Nama", parentInfo.name],
-      ["Email", parentInfo.email],
-      ["Wilayah", parentInfo.wilayah],
+      ["Nama", parentInfo.name || "-"],
+      ["Email", parentInfo.email || "-"],
+      ["Wilayah", parentInfo.wilayah || "-"],
     ];
     parentData.forEach(([label, value]) => {
       doc.text(`${label}:`, 20, yPosition);
@@ -904,6 +1372,7 @@ function downloadPDF(child, parentInfo) {
     });
   } else {
     doc.text("Data orang tua tidak tersedia", 20, yPosition);
+    yPosition += 6;
   }
   
   // Riwayat Pemeriksaan
@@ -923,61 +1392,113 @@ function downloadPDF(child, parentInfo) {
   if (child.riwayatPemeriksaan && child.riwayatPemeriksaan.length > 0) {
     child.riwayatPemeriksaan.forEach(r => {
       tableData.push([
-        new Date(r.tanggal).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" }),
-        r.bb.toString(),
-        r.tb.toString(),
-        r.lingkarKepala.toString(),
-        r.lingkarLengan.toString(),
-        r.statusGizi
+        r.tanggal ? new Date(r.tanggal).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" }) : "-",
+        r.bb?.toString() ?? "-",
+        r.tb?.toString() ?? "-",
+        r.lingkarKepala?.toString() ?? "-",
+        r.lingkarLengan?.toString() ?? "-",
+        r.statusGizi || "-"
       ]);
     });
   } else {
-    tableData.push(["", "", "", "", "", "Tidak ada data"]);
+    tableData.push(["-", "-", "-", "-", "-", "Tidak ada data"]);
   }
+
+  // Draw Manual Table
+  const colWidths = [35, 20, 20, 35, 35, 25];
+  const colPositions = [];
+  let currentX = 20;
+  for (let i = 0; i < colWidths.length; i++) {
+    colPositions.push(currentX);
+    currentX += colWidths[i];
+  }
+
+  // Draw Header
+  const headerHeight = 8;
+  doc.setFillColor(...primaryColor);
+  doc.rect(20, yPosition, 170, headerHeight, "F");
   
-  doc.autoTable({
-    head: [tableData[0]],
-    body: tableData.slice(1),
-    startY: yPosition,
-    headStyles: { fillColor: primaryColor, textColor: [255, 255, 255], fontSize: 9, fontStyle: "bold" },
-    bodyStyles: { fontSize: 9 },
-    columnStyles: {
-      0: { cellWidth: 28 },
-      1: { cellWidth: 16 },
-      2: { cellWidth: 16 },
-      3: { cellWidth: 26 },
-      4: { cellWidth: 26 },
-      5: { cellWidth: 22 },
-    },
-    margin: { left: 20, right: 20 },
-    didDrawPage: function(data) {
-      // Footer
-      const pageCount = doc.internal.pages.length - 1;
-      const pageSize = doc.internal.pageSize;
-      const pageHeight = pageSize.getHeight();
-      const pageWidth = pageSize.getWidth();
-      
-      doc.setFontSize(9);
-      doc.setTextColor(100);
-      doc.text(
-        `Halaman ${data.pageNumber} dari ${pageCount}`,
-        pageWidth / 2,
-        pageHeight - 10,
-        { align: "center" }
-      );
-    }
+  doc.setTextColor(255, 255, 255);
+  doc.setFont(undefined, "bold");
+  doc.setFontSize(9);
+  
+  const headers = ["Tanggal", "BB (kg)", "TB (cm)", "L. Kepala (cm)", "L. Lengan (cm)", "Status Gizi"];
+  headers.forEach((header, index) => {
+    const x = colPositions[index] + colWidths[index] / 2;
+    doc.text(header, x, yPosition + 5.5, { align: "center" });
   });
   
+  yPosition += headerHeight;
+
+  // Draw Rows
+  doc.setTextColor(0, 0, 0);
+  doc.setFont(undefined, "normal");
+  
+  const rowHeight = 7;
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const rows = tableData.slice(1);
+
+  rows.forEach((row) => {
+    if (yPosition + rowHeight > pageHeight - 25) {
+      doc.addPage();
+      yPosition = 20;
+      
+      // Draw Header again
+      doc.setFillColor(...primaryColor);
+      doc.rect(20, yPosition, 170, headerHeight, "F");
+      doc.setTextColor(255, 255, 255);
+      doc.setFont(undefined, "bold");
+      headers.forEach((header, index) => {
+        const x = colPositions[index] + colWidths[index] / 2;
+        doc.text(header, x, yPosition + 5.5, { align: "center" });
+      });
+      yPosition += headerHeight;
+      doc.setTextColor(0, 0, 0);
+      doc.setFont(undefined, "normal");
+    }
+
+    // Border line under row
+    doc.setDrawColor(229, 231, 235);
+    doc.line(20, yPosition + rowHeight, 190, yPosition + rowHeight);
+
+    row.forEach((cellValue, index) => {
+      const x = colPositions[index] + colWidths[index] / 2;
+      doc.text(cellValue, x, yPosition + 5, { align: "center" });
+    });
+    
+    yPosition += rowHeight;
+  });
+
   // Tanggal cetak
   doc.setFontSize(8);
   doc.setTextColor(150);
-  doc.text(`Dicetak pada: ${new Date().toLocaleDateString("id-ID")}`, 20, doc.internal.pages[1] ? 285 : doc.lastAutoTable.finalY + 15);
-  
+  let printY = yPosition + 15;
+  if (printY > pageHeight - 20) {
+    doc.addPage();
+    printY = 30;
+  }
+  doc.text(`Dicetak pada: ${new Date().toLocaleDateString("id-ID")}`, 20, printY);
+
+  // Add Page Numbers to all pages
+  const totalPages = doc.internal.getNumberOfPages();
+  for (let i = 1; i <= totalPages; i++) {
+    doc.setPage(i);
+    doc.setFontSize(9);
+    doc.setTextColor(100);
+    doc.text(
+      `Halaman ${i} dari ${totalPages}`,
+      doc.internal.pageSize.getWidth() / 2,
+      pageHeight - 10,
+      { align: "center" }
+    );
+  }
+
   // Download
-  doc.save(`Laporan-${child.nama.replace(/\s/g, "-")}.pdf`);
+  const safeFilename = (child.nama || "Balita").replace(/\s/g, "-");
+  doc.save(`Laporan-${safeFilename}.pdf`);
 }
 
-function DetailBalitaModal({ child, onClose }) {
+function DetailBalitaModal({ child, onClose, users = [] }) {
   const [activeTab, setActiveTab] = useState("info");
   
   // Cari data orang tua
@@ -1299,8 +1820,62 @@ function DetailBalitaModal({ child, onClose }) {
   );
 }
 
-function AddDataModal({ onClose }) {
+function AddDataModal({ onClose, onSave }) {
   const [dataType, setDataType] = useState("balita");
+  const [balitaForm, setBalitaForm] = useState({
+    nama: "",
+    namaIbu: "",
+    tanggalLahir: new Date().toISOString().split("T")[0],
+    jenisKelamin: "L",
+    beratBadan: "",
+    tinggiBadan: ""
+  });
+  const [ibuForm, setIbuForm] = useState({
+    nama: "",
+    tanggalLahir: new Date().toISOString().split("T")[0],
+    usiaKehamilan: "",
+    tekananDarah: "",
+    beratBadan: ""
+  });
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (dataType === "balita") {
+      if (!balitaForm.nama.trim()) return alert("Nama Balita harus diisi");
+      onSave("balita", {
+        nama: balitaForm.nama,
+        namaIbu: balitaForm.namaIbu,
+        tanggalLahir: balitaForm.tanggalLahir,
+        jenisKelamin: balitaForm.jenisKelamin,
+        beratLahir: parseFloat(balitaForm.beratBadan) || 0,
+        beratBadan: parseFloat(balitaForm.beratBadan) || 0,
+        tinggiBadan: parseFloat(balitaForm.tinggiBadan) || 0,
+        statusGizi: "Normal",
+        statusStunting: "Tidak Stunting",
+        imunisasi: { bcg: false, hb0: false, polio: false, dpt1: false, dpt2: false, campak: false },
+        riwayatPemeriksaan: []
+      });
+    } else {
+      if (!ibuForm.nama.trim()) return alert("Nama Ibu harus diisi");
+      onSave("ibu", {
+        nama: ibuForm.nama,
+        usia: 25,
+        usiaKehamilan: parseInt(ibuForm.usiaKehamilan) || 0,
+        hpht: ibuForm.tanggalLahir,
+        taksirPersalinan: new Date().toISOString().split("T")[0],
+        tekananDarah: ibuForm.tekananDarah,
+        beratBadan: parseFloat(ibuForm.beratBadan) || 0,
+        risikoTinggi: false
+      });
+    }
+  };
+
+  const inputStyle = {
+    width: "100%", padding: "11px 14px", borderRadius: 8,
+    border: "1.5px solid #E5E7EB", fontSize: 14, outline: "none",
+    boxSizing: "border-box", fontFamily: "inherit",
+    transition: "all 0.3s ease", background: "#fff"
+  };
 
   return (
     <div style={{
@@ -1339,89 +1914,94 @@ function AddDataModal({ onClose }) {
           ))}
         </div>
 
-        {/* Form */}
-        {dataType === "balita" ? (
-          <div style={{ display: "grid", gap: 16 }}>
-            {["Nama Balita", "Nama Ibu", "Tanggal Lahir", "Jenis Kelamin", "Berat Badan (kg)", "Tinggi Badan (cm)"].map(field => (
-              <div key={field}>
-                <label style={{ fontSize: 12, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>
-                  {field.toUpperCase()}
-                </label>
-                <input placeholder={`Masukkan ${field.toLowerCase()}`} style={{
-                  width: "100%", padding: "11px 14px", borderRadius: 8,
-                  border: "1.5px solid #E5E7EB", fontSize: 14, outline: "none",
-                  boxSizing: "border-box", fontFamily: "inherit",
-                  transition: "all 0.3s ease"
-                }}
-                  onFocus={(e) => {
-                    e.target.style.borderColor = "#16A34A";
-                    e.target.style.boxShadow = "0 0 0 3px rgba(22, 163, 74, 0.1)";
-                  }}
-                  onBlur={(e) => {
-                    e.target.style.borderColor = "#E5E7EB";
-                    e.target.style.boxShadow = "none";
-                  }}
-                />
+        <form onSubmit={handleSubmit}>
+          {/* Form */}
+          {dataType === "balita" ? (
+            <div style={{ display: "grid", gap: 16 }}>
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>NAMA BALITA</label>
+                <input style={inputStyle} value={balitaForm.nama} onChange={e => setBalitaForm({...balitaForm, nama: e.target.value})} placeholder="Masukkan nama balita" required />
               </div>
-            ))}
-          </div>
-        ) : (
-          <div style={{ display: "grid", gap: 16 }}>
-            {["Nama Ibu Hamil", "Tanggal Lahir", "Usia Kehamilan (bulan)", "Tekanan Darah", "Berat Badan (kg)"].map(field => (
-              <div key={field}>
-                <label style={{ fontSize: 12, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>
-                  {field.toUpperCase()}
-                </label>
-                <input placeholder={`Masukkan ${field.toLowerCase()}`} style={{
-                  width: "100%", padding: "11px 14px", borderRadius: 8,
-                  border: "1.5px solid #E5E7EB", fontSize: 14, outline: "none",
-                  boxSizing: "border-box", fontFamily: "inherit",
-                  transition: "all 0.3s ease"
-                }}
-                  onFocus={(e) => {
-                    e.target.style.borderColor = "#16A34A";
-                    e.target.style.boxShadow = "0 0 0 3px rgba(22, 163, 74, 0.1)";
-                  }}
-                  onBlur={(e) => {
-                    e.target.style.borderColor = "#E5E7EB";
-                    e.target.style.boxShadow = "none";
-                  }}
-                />
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>NAMA IBU</label>
+                <input style={inputStyle} value={balitaForm.namaIbu} onChange={e => setBalitaForm({...balitaForm, namaIbu: e.target.value})} placeholder="Masukkan nama ibu" />
               </div>
-            ))}
-          </div>
-        )}
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>TANGGAL LAHIR</label>
+                <input type="date" style={inputStyle} value={balitaForm.tanggalLahir} onChange={e => setBalitaForm({...balitaForm, tanggalLahir: e.target.value})} />
+              </div>
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>JENIS KELAMIN</label>
+                <select style={inputStyle} value={balitaForm.jenisKelamin} onChange={e => setBalitaForm({...balitaForm, jenisKelamin: e.target.value})}>
+                  <option value="L">Laki-laki (L)</option>
+                  <option value="P">Perempuan (P)</option>
+                </select>
+              </div>
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>BERAT BADAN (KG)</label>
+                <input type="number" step="0.1" style={inputStyle} value={balitaForm.beratBadan} onChange={e => setBalitaForm({...balitaForm, beratBadan: e.target.value})} placeholder="Masukkan berat badan" />
+              </div>
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>TINGGI BADAN (CM)</label>
+                <input type="number" step="0.1" style={inputStyle} value={balitaForm.tinggiBadan} onChange={e => setBalitaForm({...balitaForm, tinggiBadan: e.target.value})} placeholder="Masukkan tinggi badan" />
+              </div>
+            </div>
+          ) : (
+            <div style={{ display: "grid", gap: 16 }}>
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>NAMA IBU HAMIL</label>
+                <input style={inputStyle} value={ibuForm.nama} onChange={e => setIbuForm({...ibuForm, nama: e.target.value})} placeholder="Masukkan nama ibu hamil" required />
+              </div>
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>TANGGAL LAHIR / HPHT</label>
+                <input type="date" style={inputStyle} value={ibuForm.tanggalLahir} onChange={e => setIbuForm({...ibuForm, tanggalLahir: e.target.value})} />
+              </div>
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>USIA KEHAMILAN (MINGGU)</label>
+                <input type="number" style={inputStyle} value={ibuForm.usiaKehamilan} onChange={e => setIbuForm({...ibuForm, usiaKehamilan: e.target.value})} placeholder="Masukkan usia kehamilan" />
+              </div>
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>TEKANAN DARAH</label>
+                <input style={inputStyle} value={ibuForm.tekananDarah} onChange={e => setIbuForm({...ibuForm, tekananDarah: e.target.value})} placeholder="Masukkan tekanan darah (misal: 120/80)" />
+              </div>
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>BERAT BADAN (KG)</label>
+                <input type="number" step="0.1" style={inputStyle} value={ibuForm.beratBadan} onChange={e => setIbuForm({...ibuForm, beratBadan: e.target.value})} placeholder="Masukkan berat badan" />
+              </div>
+            </div>
+          )}
 
-        {/* Buttons */}
-        <div style={{ display: "flex", gap: 12, marginTop: 24 }}>
-          <button onClick={onClose} style={{
-            flex: 1, padding: "12px", borderRadius: 8, border: "1px solid #E5E7EB",
-            background: "#fff", cursor: "pointer", fontFamily: "inherit", fontWeight: 600,
-            transition: "all 0.2s ease"
-          }}
-            onMouseOver={(e) => { e.target.style.background = "#F9FAFB"; }}
-            onMouseOut={(e) => { e.target.style.background = "#fff"; }}
-          >
-            Batal
-          </button>
-          <button style={{
-            flex: 1, padding: "12px", borderRadius: 8,
-            background: "linear-gradient(135deg, #16A34A 0%, #15803D 100%)",
-            color: "#fff", border: "none", cursor: "pointer", fontFamily: "inherit",
-            fontWeight: 600, transition: "all 0.3s ease", boxShadow: "0 4px 12px rgba(22, 163, 74, 0.25)"
-          }}
-            onMouseOver={(e) => {
-              e.target.style.transform = "translateY(-2px)";
-              e.target.style.boxShadow = "0 8px 20px rgba(22, 163, 74, 0.35)";
+          {/* Buttons */}
+          <div style={{ display: "flex", gap: 12, marginTop: 24 }}>
+            <button type="button" onClick={onClose} style={{
+              flex: 1, padding: "12px", borderRadius: 8, border: "1px solid #E5E7EB",
+              background: "#fff", cursor: "pointer", fontFamily: "inherit", fontWeight: 600,
+              transition: "all 0.2s ease"
             }}
-            onMouseOut={(e) => {
-              e.target.style.transform = "translateY(0)";
-              e.target.style.boxShadow = "0 4px 12px rgba(22, 163, 74, 0.25)";
+              onMouseOver={(e) => { e.target.style.background = "#F9FAFB"; }}
+              onMouseOut={(e) => { e.target.style.background = "#fff"; }}
+            >
+              Batal
+            </button>
+            <button type="submit" style={{
+              flex: 1, padding: "12px", borderRadius: 8,
+              background: "linear-gradient(135deg, #16A34A 0%, #15803D 100%)",
+              color: "#fff", border: "none", cursor: "pointer", fontFamily: "inherit",
+              fontWeight: 600, transition: "all 0.3s ease", boxShadow: "0 4px 12px rgba(22, 163, 74, 0.25)"
             }}
-          >
-            Simpan
-          </button>
-        </div>
+              onMouseOver={(e) => {
+                e.target.style.transform = "translateY(-2px)";
+                e.target.style.boxShadow = "0 8px 20px rgba(22, 163, 74, 0.35)";
+              }}
+              onMouseOut={(e) => {
+                e.target.style.transform = "translateY(0)";
+                e.target.style.boxShadow = "0 4px 12px rgba(22, 163, 74, 0.25)";
+              }}
+            >
+              Simpan
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );
@@ -1611,7 +2191,7 @@ function EditRujukanModal({ rujukan, onClose, onSave }) {
 }
 
 function BuatSesiModal({ onClose, onSessionCreated, jadwalSesiState }) {
-  const { success, error: errorNotify } = useNotification();
+  const { error: errorNotify } = useNotification();
   const [formData, setFormData] = useState({
     namaSesi: "",
     tanggal: "",
@@ -1902,8 +2482,149 @@ function BuatSesiModal({ onClose, onSessionCreated, jadwalSesiState }) {
   );
 }
 
+function DetailSesiModal({ sesi, onClose }) {
+  // Helper to determine if a session has passed (before today's local date)
+  const getSessionStatus = (j) => {
+    if (!j.tanggal) return "Mendatang";
+    const parts = j.tanggal.split('-');
+    if (parts.length !== 3) return "Mendatang";
+    const sessionDate = new Date(parts[0], parts[1] - 1, parts[2]);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (sessionDate < today) {
+      return "Sudah Berlalu";
+    }
+    return j.status || "Mendatang";
+  };
+
+  const isPast = getSessionStatus(sesi) === "Sudah Berlalu";
+  const badgeBg = isPast ? "#E5E7EB" : "#DCFCE7";
+  const badgeColor = isPast ? "#4B5563" : "#16A34A";
+  const displayStatus = isPast ? "Sudah Berlalu" : (sesi.status || "Mendatang");
+
+  // Format date nicely
+  const formattedDate = new Date(sesi.tanggal).toLocaleDateString("id-ID", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric"
+  });
+
+  return (
+    <div style={{
+      position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)",
+      display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000
+    }}>
+      <div style={{
+        background: "#fff", borderRadius: 16, width: "100%", maxWidth: 500,
+        padding: 32, boxShadow: "0 20px 60px rgba(0,0,0,0.3)"
+      }}>
+        {/* Header */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24 }}>
+          <div>
+            <span style={{
+              fontSize: 11,
+              padding: "4px 10px",
+              borderRadius: 20,
+              background: badgeBg,
+              color: badgeColor,
+              fontWeight: 700,
+              textTransform: "uppercase",
+              letterSpacing: "0.5px",
+              display: "inline-block",
+              marginBottom: 8
+            }}>
+              {displayStatus}
+            </span>
+            <h2 style={{ fontSize: 22, fontWeight: 800, margin: 0, color: "#111827", lineHeight: 1.3 }}>
+              {sesi.nama || "Sesi Pemeriksaan Kesehatan"}
+            </h2>
+          </div>
+          <button onClick={onClose} style={{ border: "none", background: "none", fontSize: 24, cursor: "pointer", color: "#9CA3AF", padding: 0 }}>✕</button>
+        </div>
+
+        {/* Content Details */}
+        <div style={{ display: "grid", gap: 16, marginBottom: 28 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <span style={{ fontSize: 20 }}>🏥</span>
+            <div>
+              <div style={{ fontSize: 11, color: "#9CA3AF", fontWeight: 600 }}>POSYANDU</div>
+              <div style={{ fontSize: 14, color: "#374151", fontWeight: 700 }}>{sesi.posyandu}</div>
+            </div>
+          </div>
+
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <span style={{ fontSize: 20 }}>📅</span>
+            <div>
+              <div style={{ fontSize: 11, color: "#9CA3AF", fontWeight: 600 }}>TANGGAL</div>
+              <div style={{ fontSize: 14, color: "#374151", fontWeight: 600 }}>{formattedDate}</div>
+            </div>
+          </div>
+
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <span style={{ fontSize: 20 }}>⏰</span>
+            <div>
+              <div style={{ fontSize: 11, color: "#9CA3AF", fontWeight: 600 }}>WAKTU</div>
+              <div style={{ fontSize: 14, color: "#374151", fontWeight: 600 }}>{sesi.waktu} WIB</div>
+            </div>
+          </div>
+
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <span style={{ fontSize: 20 }}>👤</span>
+            <div>
+              <div style={{ fontSize: 11, color: "#9CA3AF", fontWeight: 600 }}>KADER PENANGGUNG JAWAB (PJ)</div>
+              <div style={{ fontSize: 14, color: "#374151", fontWeight: 600 }}>{sesi.kader || "Kader Posyandu"}</div>
+            </div>
+          </div>
+
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <span style={{ fontSize: 20 }}>👥</span>
+            <div>
+              <div style={{ fontSize: 11, color: "#9CA3AF", fontWeight: 600 }}>JUMLAH KEHADIRAN</div>
+              <div style={{ fontSize: 14, color: "#374151", fontWeight: 600 }}>{sesi.jumlahHadir} Balita</div>
+            </div>
+          </div>
+
+          {sesi.deskripsi && (
+            <div style={{
+              background: "#F9FAFB",
+              border: "1px solid #F3F4F6",
+              borderRadius: 10,
+              padding: 16,
+              marginTop: 8
+            }}>
+              <div style={{ fontSize: 11, color: "#9CA3AF", fontWeight: 600, marginBottom: 4 }}>CATATAN / KETERANGAN</div>
+              <div style={{ fontSize: 13, color: "#4B5563", lineHeight: 1.5 }}>{sesi.deskripsi}</div>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <button
+          onClick={onClose}
+          style={{
+            width: "100%", padding: "12px", borderRadius: 8, border: "none",
+            background: isPast ? "#6B7280" : "linear-gradient(135deg, #16A34A 0%, #15803D 100%)",
+            color: "#fff", cursor: "pointer", fontFamily: "inherit", fontWeight: 600,
+            transition: "all 0.2s ease",
+            boxShadow: isPast ? "0 4px 12px rgba(107, 114, 128, 0.2)" : "0 4px 12px rgba(22, 163, 74, 0.25)"
+          }}
+          onMouseOver={(e) => {
+            e.target.style.transform = "translateY(-1px)";
+          }}
+          onMouseOut={(e) => {
+            e.target.style.transform = "translateY(0)";
+          }}
+        >
+          Tutup Detail
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function InputPemeriksaanModal({ child, onClose, onSave }) {
-  const { success, error: errorNotify } = useNotification();
+  const { error: errorNotify } = useNotification();
   const [formData, setFormData] = useState({
     tanggal: new Date().toISOString().split('T')[0],
     bb: "",
@@ -2253,6 +2974,138 @@ function InputPemeriksaanModal({ child, onClose, onSave }) {
             </button>
           </div>
         </form>
+      </div>
+    </div>
+  );
+}
+
+function DetailIbuHamilModal({ ibu, onClose }) {
+  return (
+    <div style={{
+      position: "fixed",
+      inset: 0,
+      background: "rgba(0,0,0,0.5)",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      zIndex: 1000
+    }}>
+      <div style={{
+        background: "#fff",
+        borderRadius: 16,
+        width: "100%",
+        maxWidth: 600,
+        padding: 32,
+        maxHeight: "90vh",
+        overflow: "auto",
+        boxShadow: "0 20px 60px rgba(0,0,0,0.3)"
+      }}>
+        {/* Header */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
+          <div>
+            <h2 style={{ fontSize: 24, fontWeight: 800, margin: 0, color: "#111827" }}>
+              🤰 {ibu.nama}
+            </h2>
+            <p style={{ fontSize: 13, color: "#6B7280", margin: "8px 0 0" }}>
+              Status Risiko: {ibu.risikoTinggi ? "⚠️ Risiko Tinggi" : "✅ Normal / Risiko Rendah"}
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            style={{
+              border: "none",
+              background: "none",
+              fontSize: 24,
+              cursor: "pointer",
+              color: "#9CA3AF"
+            }}
+          >
+            ✕
+          </button>
+        </div>
+
+        {/* Info Grid */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
+          <div>
+            <h3 style={{ fontSize: 13, fontWeight: 700, color: "#111827", marginBottom: 16, textTransform: "uppercase" }}>Informasi Ibu</h3>
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {[
+                ["Nama", ibu.nama],
+                ["Usia Ibu", `${ibu.usia || 25} tahun`],
+                ["Posyandu", ibu.posyandu || "-"],
+              ].map(([label, value], i) => (
+                <div key={i}>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: "#6B7280", textTransform: "uppercase" }}>{label}</div>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: "#111827", marginTop: 4 }}>{value}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <h3 style={{ fontSize: 13, fontWeight: 700, color: "#111827", marginBottom: 16, textTransform: "uppercase" }}>Kondisi Kehamilan</h3>
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {[
+                ["Usia Kehamilan", `${ibu.usiaKehamilan || 0} minggu`, "#3B82F6"],
+                ["Tekanan Darah", ibu.tekananDarah || "-", "#8B5CF6"],
+                ["Berat Badan", `${ibu.beratBadan || 0} kg`, "#10B981"],
+              ].map(([label, value, color], i) => (
+                <div key={i} style={{ padding: 12, background: "#F9FAFB", borderLeft: `4px solid ${color}`, borderRadius: 8 }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: "#6B7280", textTransform: "uppercase" }}>{label}</div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: color, marginTop: 4 }}>{value}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div style={{ gridColumn: "1 / -1" }}>
+            <h3 style={{ fontSize: 13, fontWeight: 700, color: "#111827", marginBottom: 16, textTransform: "uppercase" }}>Detail Persalinan</h3>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, background: "#F9FAFB", padding: 16, borderRadius: 12 }}>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 600, color: "#6B7280", textTransform: "uppercase" }}>HPHT (Hari Pertama Haid Terakhir)</div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: "#111827", marginTop: 4 }}>
+                  {ibu.hpht ? new Date(ibu.hpht).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" }) : "-"}
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 600, color: "#6B7280", textTransform: "uppercase" }}>Taksiran Persalinan (HPL)</div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: "#EF4444", marginTop: 4 }}>
+                  {ibu.taksirPersalinan ? new Date(ibu.taksirPersalinan).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" }) : "-"}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Buttons */}
+        <div style={{ display: "flex", gap: 12, marginTop: 32, paddingTop: 24, borderTop: "1px solid #E5E7EB" }}>
+          <button
+            onClick={onClose}
+            style={{
+              flex: 1,
+              padding: "12px",
+              borderRadius: 8,
+              background: "linear-gradient(135deg, #16A34A 0%, #15803D 100%)",
+              color: "#fff",
+              border: "none",
+              cursor: "pointer",
+              fontFamily: "inherit",
+              fontWeight: 600,
+              transition: "all 0.3s ease",
+              boxShadow: "0 4px 12px rgba(22, 163, 74, 0.25)"
+            }}
+            onMouseOver={(e) => {
+              e.target.style.transform = "translateY(-2px)";
+              e.target.style.boxShadow = "0 8px 20px rgba(22, 163, 74, 0.35)";
+            }}
+            onMouseOut={(e) => {
+              e.target.style.transform = "translateY(0)";
+              e.target.style.boxShadow = "0 4px 12px rgba(22, 163, 74, 0.25)";
+            }}
+          >
+            Tutup
+          </button>
+        </div>
       </div>
     </div>
   );
