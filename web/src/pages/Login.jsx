@@ -1,11 +1,13 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { useNotification } from "../context/NotificationContext";
 import logo from "../assets/POSCO_LOGO_KITA.png";
 
 export default function Login() {
   const { login } = useAuth();
   const navigate = useNavigate();
+  const { success, error: errorNotify } = useNotification();
   const [role, setRole] = useState("kader");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -20,20 +22,21 @@ export default function Login() {
     await new Promise(r => setTimeout(r, 800));
     const ok = login(role, email, password);
     if (ok) {
-      // Redirect ke /admin jika role adalah admin, selain itu ke /dashboard
-      navigate(role === "admin" ? "/admin" : "/dashboard");
+      success("✓ Login berhasil! Selamat datang");
+      // Redirect berdasarkan role
+      setTimeout(() => {
+        const routes = { admin: "/admin", kader: "/kader", orangtua: "/orangtua" };
+        navigate(routes[role] || "/dashboard");
+      }, 500);
     } else {
-      setError("ID atau kata sandi tidak valid");
+      const errorMsg = "⚠️ ID atau kata sandi tidak valid";
+      setError(errorMsg);
+      errorNotify(errorMsg);
     }
     setLoading(false);
   };
 
   const roles = [
-    { key: "admin", label: "Admin", icon: (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-      </svg>
-    )},
     { key: "kader", label: "Kader", icon: (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
         <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>

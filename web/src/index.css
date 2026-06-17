@@ -1,5 +1,6 @@
 /* Global Styles - Design System imported from styles.css */
 @import "./styles.css";
+@import "./styles/responsive.css";
 
 /* Reset and Base */
 * {

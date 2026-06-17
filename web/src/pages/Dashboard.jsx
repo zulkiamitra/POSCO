@@ -1,13 +1,16 @@
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { useNotification } from "../context/NotificationContext";
 import { posyandus, children, ibuHamil } from "../data/dummyData";
 import logo from "../assets/POSCO_LOGO_KITA.png";
 
 export default function Dashboard() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const { warning } = useNotification();
 
   const handleLogout = () => {
+    warning("👋 Anda telah logout");
     logout();
     navigate("/login");
   };

@@ -21,6 +21,43 @@ export function AuthProvider({ children }) {
     setLoading(false);
   }, []);
 
+  // Session timeout: 30 minutes
+  useEffect(() => {
+    if (!user) return;
+
+    const SESSION_TIMEOUT = 30 * 60 * 1000; // 30 minutes
+    
+    let timeoutId;
+    let lastActivityTime = Date.now();
+
+    const resetTimeout = () => {
+      lastActivityTime = Date.now();
+      clearTimeout(timeoutId);
+      
+      timeoutId = setTimeout(() => {
+        console.warn("⏱️ Session expired due to inactivity");
+        logout();
+      }, SESSION_TIMEOUT);
+    };
+
+    // Attach activity listeners
+    const events = ["mousedown", "keydown", "scroll", "touchstart"];
+    events.forEach(event => {
+      document.addEventListener(event, resetTimeout, true);
+    });
+
+    // Initial timeout
+    resetTimeout();
+
+    // Cleanup
+    return () => {
+      clearTimeout(timeoutId);
+      events.forEach(event => {
+        document.removeEventListener(event, resetTimeout, true);
+      });
+    };
+  }, [user]);
+
   const login = (role, email, password) => {
     const credentials = defaultCredentials[role];
     
@@ -30,10 +67,10 @@ export function AuthProvider({ children }) {
 
     // Check email and password
     if (credentials.email === email && credentials.password === password) {
+      // ✅ SECURITY FIX: Don't store password or email in localStorage
       const userData = {
         id: credentials.id,
         name: credentials.name,
-        email: credentials.email,
         role: credentials.role,
         wilayah: credentials.wilayah,
         ...(credentials.posyandu && { posyandu: credentials.posyandu })
