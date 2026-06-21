@@ -30,6 +30,10 @@ export default function KaderDashboard() {
   const [childForInput, setChildForInput] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  const [showEditWargaModal, setShowEditWargaModal] = useState(false);
+  const [selectedWargaToEdit, setSelectedWargaToEdit] = useState(null);
+  const [wargaTypeToEdit, setWargaTypeToEdit] = useState("balita");
+
   const loadKaderData = useCallback(async () => {
     setLoading(true);
     try {
@@ -252,7 +256,28 @@ export default function KaderDashboard() {
             />
           )}
           {activePage === "buat-sesi" && <BuatSesiPage setShowModal={setShowAddModal} />}
-          {activePage === "tindak-lanjut" && <TindakLanjutPage rujukan={rujukanState} onEditRujukan={(r) => { setSelectedRujukan(r); setShowEditRujukanModal(true); }} />}
+          {activePage === "tindak-lanjut" && (
+            <TindakLanjutPage 
+              rujukan={rujukanState} 
+              onEditRujukan={(r) => { setSelectedRujukan(r); setShowEditRujukanModal(true); }} 
+              childrenData={childrenData}
+              ibuHamilData={ibuHamilState}
+              onEditChild={(child) => {
+                setWargaTypeToEdit("balita");
+                setSelectedWargaToEdit(child);
+                setShowEditWargaModal(true);
+              }}
+              onEditIbu={(ibu) => {
+                setWargaTypeToEdit("ibu");
+                setSelectedWargaToEdit(ibu);
+                setShowEditWargaModal(true);
+              }}
+              onInputPemeriksaan={(child) => {
+                setChildForInput(child);
+                setShowInputPemeriksaanModal(true);
+              }}
+            />
+          )}
           {activePage === "riwayat" && <RiwayatPage childrenData={childrenData} />}
         </div>
       </div>
@@ -333,6 +358,30 @@ export default function KaderDashboard() {
               success("✅ Data pemeriksaan berhasil disimpan!");
             } catch (err) {
               errorNotify("⚠️ Gagal menyimpan pemeriksaan: " + err.message);
+            }
+          }}
+        />
+      )}
+      {showEditWargaModal && selectedWargaToEdit && (
+        <EditWargaModal
+          type={wargaTypeToEdit}
+          data={selectedWargaToEdit}
+          onClose={() => { setShowEditWargaModal(false); setSelectedWargaToEdit(null); }}
+          onSave={async (type, updatedData) => {
+            try {
+              if (type === "balita") {
+                const res = await api.updateChild(updatedData.id, updatedData, posyandus);
+                setChildrenData(childrenData.map(c => c.id === res.id ? res : c));
+                success("✅ Data balita berhasil diperbarui!");
+              } else {
+                const res = await api.updatePregnancy(updatedData.id, updatedData, posyandus);
+                setIbuHamilState(ibuHamilState.map(i => i.id === res.id ? res : i));
+                success("✅ Data ibu hamil berhasil diperbarui!");
+              }
+              setShowEditWargaModal(false);
+              setSelectedWargaToEdit(null);
+            } catch (err) {
+              errorNotify("⚠️ Gagal memperbarui data: " + err.message);
             }
           }}
         />
@@ -874,8 +923,6 @@ function DataWargaPage({
                   </span>
                 </td>
                 <td style={{ padding: "16px", textAlign: "center" }}>
-                </td>
-                <td style={{ padding: "16px", textAlign: "center" }}>
                   {tab === "balita" ? (
                     <button 
                       onClick={() => handleViewDetail(item)}
@@ -1060,79 +1107,311 @@ function BuatSesiPage({ setShowModal }) {
   );
 }
 
-function TindakLanjutPage({ rujukan, onEditRujukan }) {
+function TindakLanjutPage({ 
+  rujukan, 
+  onEditRujukan, 
+  childrenData = [], 
+  ibuHamilData = [], 
+  onEditChild, 
+  onEditIbu,
+  onInputPemeriksaan
+}) {
+  const [tab, setTab] = useState("rujukan");
+
+  const getStatusColor = (status) => {
+    const s = (status || "Normal").toLowerCase();
+    if (s.includes("normal")) return { bg: "#F0FDF4", color: "#16A34A" };
+    if (s.includes("kurang") || s.includes("risiko") || s.includes("berisiko") || s.includes("beresiko")) return { bg: "#FFFBEB", color: "#D97706" };
+    if (s.includes("lebih") || s.includes("stunting") || s.includes("buruk") || s.includes("obesitas")) return { bg: "#FEF2F2", color: "#EF4444" };
+    return { bg: "#F3F4F6", color: "#6B7280" };
+  };
+
   return (
-    <div style={{
-      background: "#fff",
-      borderRadius: 12,
-      padding: 24,
-      border: "1px solid #E5E7EB",
-      boxShadow: "0 2px 8px rgba(0, 0, 0, 0.06)"
-    }}>
-      {rujukan.slice(0, 8).map((r, i) => (
-        <div key={i} style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 16,
-          padding: "16px",
-          marginBottom: "8px",
-          borderRadius: 8,
-          background: "#F9FAFB",
-          borderBottom: i < rujukan.length - 1 ? "1px solid #F3F4F6" : "none",
-          transition: "all 0.2s ease"
-        }}
-          onMouseOver={(e) => e.currentTarget.style.background = "#F3F4F6"}
-          onMouseOut={(e) => e.currentTarget.style.background = "#F9FAFB"}
-        >
-          <div style={{
-            width: 10,
-            height: 10,
-            borderRadius: "50%",
-            background: r.status === "Selesai" ? "#16A34A" : r.status === "Proses" ? "#F59E0B" : "#EF4444",
-            flexShrink: 0
-          }} />
-          <div style={{ flex: 1 }}>
-            <div style={{ fontWeight: 600, fontSize: 14, color: "#111827" }}>{r.namaAnak}</div>
-            <div style={{ fontSize: 13, color: "#6B7280", marginTop: 2 }}>{r.alasan}</div>
-            <div style={{ fontSize: 12, color: "#9CA3AF", marginTop: 4 }}>{r.tujuan}</div>
+    <div>
+      {/* Tab Selectors */}
+      <div style={{
+        display: "flex",
+        gap: 8,
+        marginBottom: 24,
+        background: "#F3F4F6",
+        padding: 4,
+        borderRadius: 10,
+        width: "fit-content"
+      }}>
+        {[
+          { id: "rujukan", label: "📋 Rujukan Sesi" },
+          { id: "balita", label: "👶 Data Balita" },
+          { id: "ibu", label: "🤰 Data Ibu Hamil" }
+        ].map(t => (
+          <button
+            key={t.id}
+            onClick={() => setTab(t.id)}
+            style={{
+              padding: "10px 20px",
+              borderRadius: 8,
+              border: "none",
+              background: tab === t.id ? "#fff" : "transparent",
+              color: tab === t.id ? "#16A34A" : "#6B7280",
+              fontSize: 14,
+              fontWeight: 600,
+              cursor: "pointer",
+              transition: "all 0.2s ease",
+              boxShadow: tab === t.id ? "0 2px 4px rgba(0,0,0,0.08)" : "none"
+            }}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      <div style={{
+        background: "#fff",
+        borderRadius: 12,
+        padding: 24,
+        border: "1px solid #E5E7EB",
+        boxShadow: "0 2px 8px rgba(0, 0, 0, 0.06)"
+      }}>
+        {/* Tab 1: Rujukan */}
+        {tab === "rujukan" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {rujukan.length > 0 ? (
+              rujukan.slice(0, 8).map((r, i) => (
+                <div key={i} style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 16,
+                  padding: "16px",
+                  borderRadius: 8,
+                  background: "#F9FAFB",
+                  borderBottom: "1px solid #F3F4F6",
+                  transition: "all 0.2s ease"
+                }}
+                  onMouseOver={(e) => e.currentTarget.style.background = "#F3F4F6"}
+                  onMouseOut={(e) => e.currentTarget.style.background = "#F9FAFB"}
+                >
+                  <div style={{
+                    width: 10,
+                    height: 10,
+                    borderRadius: "50%",
+                    background: r.status === "Selesai" ? "#16A34A" : r.status === "Proses" ? "#F59E0B" : "#EF4444",
+                    flexShrink: 0
+                  }} />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 600, fontSize: 14, color: "#111827" }}>{r.namaAnak}</div>
+                    <div style={{ fontSize: 13, color: "#6B7280", marginTop: 2 }}>{r.alasan}</div>
+                    <div style={{ fontSize: 12, color: "#9CA3AF", marginTop: 4 }}>{r.tujuan}</div>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <span style={{
+                      fontSize: 11,
+                      padding: "4px 12px",
+                      borderRadius: 20,
+                      background: r.status === "Selesai" ? "#F0FDF4" : r.status === "Proses" ? "#FFFBEB" : "#FEF2F2",
+                      color: r.status === "Selesai" ? "#16A34A" : r.status === "Proses" ? "#D97706" : "#DC2626",
+                      fontWeight: 600
+                    }}>
+                      {r.status}
+                    </span>
+                    <button
+                      onClick={() => onEditRujukan(r)}
+                      style={{
+                        background: "none",
+                        border: "none",
+                        color: "#3B82F6",
+                        cursor: "pointer",
+                        fontSize: 13,
+                        fontWeight: 600,
+                        transition: "all 0.2s ease",
+                        padding: "4px 8px"
+                      }}
+                      onMouseOver={(e) => {
+                        e.target.style.color = "#1D4ED8";
+                        e.target.style.textDecoration = "underline";
+                      }}
+                      onMouseOut={(e) => {
+                        e.target.style.color = "#3B82F6";
+                        e.target.style.textDecoration = "none";
+                      }}
+                    >
+                      📝 Edit
+                    </button>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div style={{ padding: 32, textAlign: "center", color: "#9CA3AF" }}>
+                📋 Belum ada data rujukan tindak lanjut
+              </div>
+            )}
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <span style={{
-              fontSize: 11,
-              padding: "4px 12px",
-              borderRadius: 20,
-              background: r.status === "Selesai" ? "#F0FDF4" : r.status === "Proses" ? "#FFFBEB" : "#FEF2F2",
-              color: r.status === "Selesai" ? "#16A34A" : r.status === "Proses" ? "#D97706" : "#DC2626",
-              fontWeight: 600
-            }}>
-              {r.status}
-            </span>
-            <button
-              onClick={() => onEditRujukan(r)}
-              style={{
-                background: "none",
-                border: "none",
-                color: "#3B82F6",
-                cursor: "pointer",
-                fontSize: 13,
-                fontWeight: 600,
-                transition: "all 0.2s ease",
-                padding: "4px 8px"
-              }}
-              onMouseOver={(e) => {
-                e.target.style.color = "#1D4ED8";
-                e.target.style.textDecoration = "underline";
-              }}
-              onMouseOut={(e) => {
-                e.target.style.color = "#3B82F6";
-                e.target.style.textDecoration = "none";
-              }}
-            >
-              📝 Edit
-            </button>
+        )}
+
+        {/* Tab 2: Balita */}
+        {tab === "balita" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {childrenData.length > 0 ? (
+              childrenData.map((c, i) => {
+                const statusColors = getStatusColor(c.statusGizi);
+                return (
+                  <div key={c.id} style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 16,
+                    padding: "16px",
+                    borderRadius: 8,
+                    background: "#F9FAFB",
+                    borderBottom: "1px solid #F3F4F6",
+                    transition: "all 0.2s ease"
+                  }}
+                    onMouseOver={(e) => e.currentTarget.style.background = "#F3F4F6"}
+                    onMouseOut={(e) => e.currentTarget.style.background = "#F9FAFB"}
+                  >
+                    <div style={{ fontSize: 24, flexShrink: 0 }}>{c.jenisKelamin === "P" ? "👧" : "👦"}</div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 600, fontSize: 14, color: "#111827" }}>{c.nama}</div>
+                      <div style={{ fontSize: 13, color: "#6B7280", marginTop: 2 }}>Ibu: {c.namaIbu || "-"} • Lahir: {new Date(c.tanggalLahir).toLocaleDateString("id-ID")}</div>
+                      <div style={{ fontSize: 12, color: "#9CA3AF", marginTop: 4 }}>BB: {c.beratBadan} kg • TB: {c.tinggiBadan} cm</div>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                      <span style={{
+                        fontSize: 11,
+                        padding: "4px 12px",
+                        borderRadius: 20,
+                        background: statusColors.bg,
+                        color: statusColors.color,
+                        fontWeight: 600
+                      }}>
+                        {c.statusGizi}
+                      </span>
+                      <button
+                        onClick={() => onInputPemeriksaan && onInputPemeriksaan(c)}
+                        style={{
+                          background: "none",
+                          border: "none",
+                          color: "#16A34A",
+                          cursor: "pointer",
+                          fontSize: 13,
+                          fontWeight: 600,
+                          transition: "all 0.2s ease",
+                          padding: "4px 8px"
+                        }}
+                        onMouseOver={(e) => {
+                          e.target.style.color = "#15803D";
+                          e.target.style.textDecoration = "underline";
+                        }}
+                        onMouseOut={(e) => {
+                          e.target.style.color = "#16A34A";
+                          e.target.style.textDecoration = "none";
+                        }}
+                      >
+                        ➕ Pemeriksaan
+                      </button>
+                      <button
+                        onClick={() => onEditChild(c)}
+                        style={{
+                          background: "none",
+                          border: "none",
+                          color: "#F59E0B",
+                          cursor: "pointer",
+                          fontSize: 13,
+                          fontWeight: 600,
+                          transition: "all 0.2s ease",
+                          padding: "4px 8px"
+                        }}
+                        onMouseOver={(e) => {
+                          e.target.style.color = "#D97706";
+                          e.target.style.textDecoration = "underline";
+                        }}
+                        onMouseOut={(e) => {
+                          e.target.style.color = "#F59E0B";
+                          e.target.style.textDecoration = "none";
+                        }}
+                      >
+                        📝 Edit
+                      </button>
+                    </div>
+                  </div>
+                );
+              })
+            ) : (
+              <div style={{ padding: 32, textAlign: "center", color: "#9CA3AF" }}>
+                👶 Belum ada data balita
+              </div>
+            )}
           </div>
-        </div>
-      ))}
+        )}
+
+        {/* Tab 3: Ibu Hamil */}
+        {tab === "ibu" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {ibuHamilData.length > 0 ? (
+              ibuHamilData.map((ibu, i) => {
+                return (
+                  <div key={ibu.id} style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 16,
+                    padding: "16px",
+                    borderRadius: 8,
+                    background: "#F9FAFB",
+                    borderBottom: "1px solid #F3F4F6",
+                    transition: "all 0.2s ease"
+                  }}
+                    onMouseOver={(e) => e.currentTarget.style.background = "#F3F4F6"}
+                    onMouseOut={(e) => e.currentTarget.style.background = "#F9FAFB"}
+                  >
+                    <div style={{ fontSize: 24, flexShrink: 0 }}>🤰</div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 600, fontSize: 14, color: "#111827" }}>{ibu.nama}</div>
+                      <div style={{ fontSize: 13, color: "#6B7280", marginTop: 2 }}>Usia Kehamilan: {ibu.usiaKehamilan} minggu • Tensi: {ibu.tekananDarah || "-"}</div>
+                      <div style={{ fontSize: 12, color: "#9CA3AF", marginTop: 4 }}>Usia Ibu: {ibu.usia} tahun • BB: {ibu.beratBadan} kg</div>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                      <span style={{
+                        fontSize: 11,
+                        padding: "4px 12px",
+                        borderRadius: 20,
+                        background: ibu.risikoTinggi ? "#FEF2F2" : "#F0FDF4",
+                        color: ibu.risikoTinggi ? "#EF4444" : "#16A34A",
+                        fontWeight: 600
+                      }}>
+                        {ibu.risikoTinggi ? "⚠️ Risiko Tinggi" : "✅ Normal"}
+                      </span>
+                      <button
+                        onClick={() => onEditIbu(ibu)}
+                        style={{
+                          background: "none",
+                          border: "none",
+                          color: "#F59E0B",
+                          cursor: "pointer",
+                          fontSize: 13,
+                          fontWeight: 600,
+                          transition: "all 0.2s ease",
+                          padding: "4px 8px"
+                        }}
+                        onMouseOver={(e) => {
+                          e.target.style.color = "#D97706";
+                          e.target.style.textDecoration = "underline";
+                        }}
+                        onMouseOut={(e) => {
+                          e.target.style.color = "#F59E0B";
+                          e.target.style.textDecoration = "none";
+                        }}
+                      >
+                        📝 Edit
+                      </button>
+                    </div>
+                  </div>
+                );
+              })
+            ) : (
+              <div style={{ padding: 32, textAlign: "center", color: "#9CA3AF" }}>
+                🤰 Belum ada data ibu hamil
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -3106,6 +3385,235 @@ function DetailIbuHamilModal({ ibu, onClose }) {
             Tutup
           </button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function EditWargaModal({ type, data, onClose, onSave }) {
+  const { error: errorNotify } = useNotification();
+  const [loading, setLoading] = useState(false);
+  
+  const [balitaForm, setBalitaForm] = useState({
+    id: data.id,
+    nama: data.nama || "",
+    namaIbu: data.namaIbu || "",
+    tanggalLahir: data.tanggalLahir || "",
+    jenisKelamin: data.jenisKelamin || "L",
+    beratLahir: data.beratLahir || 0,
+    beratBadan: data.beratBadan || "",
+    tinggiBadan: data.tinggiBadan || "",
+    statusGizi: data.statusGizi || "Normal",
+    statusStunting: data.statusStunting || "Tidak Stunting",
+    imunisasi: data.imunisasi || { bcg: false, hb0: false, polio: false, dpt1: false, dpt2: false, campak: false },
+    riwayatPemeriksaan: data.riwayatPemeriksaan || [],
+    orangtuaId: data.orangtuaId || ""
+  });
+
+  const [ibuForm, setIbuForm] = useState({
+    id: data.id,
+    nama: data.nama || "",
+    usia: data.usia || 25,
+    usiaKehamilan: data.usiaKehamilan || "",
+    hpht: data.hpht || "",
+    taksirPersalinan: data.taksirPersalinan || "",
+    tekananDarah: data.tekananDarah || "",
+    beratBadan: data.beratBadan || "",
+    posyanduId: data.posyanduId || "",
+    risikoTinggi: data.risikoTinggi || false
+  });
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+
+    try {
+      if (type === "balita") {
+        if (!balitaForm.nama.trim()) {
+          errorNotify("⚠️ Nama Balita tidak boleh kosong!");
+          setLoading(false);
+          return;
+        }
+        await onSave("balita", {
+          ...balitaForm,
+          beratBadan: parseFloat(balitaForm.beratBadan) || 0,
+          tinggiBadan: parseFloat(balitaForm.tinggiBadan) || 0,
+          beratLahir: parseFloat(balitaForm.beratLahir) || 0
+        });
+      } else {
+        if (!ibuForm.nama.trim()) {
+          errorNotify("⚠️ Nama Ibu tidak boleh kosong!");
+          setLoading(false);
+          return;
+        }
+        await onSave("ibu", {
+          ...ibuForm,
+          usia: parseInt(ibuForm.usia) || 25,
+          usiaKehamilan: parseInt(ibuForm.usiaKehamilan) || 0,
+          beratBadan: parseFloat(ibuForm.beratBadan) || 0
+        });
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const inputStyle = {
+    width: "100%", padding: "11px 14px", borderRadius: 8,
+    border: "1.5px solid #E5E7EB", fontSize: 14, outline: "none",
+    boxSizing: "border-box", fontFamily: "inherit",
+    transition: "all 0.3s ease", background: "#fff"
+  };
+
+  const statusGiziOptions = ["Normal", "Gizi Kurang", "Gizi Lebih", "Stunting"];
+  const statusStuntingOptions = ["Tidak Stunting", "Stunting", "Indikasi Stunting"];
+
+  return (
+    <div style={{
+      position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)",
+      display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000
+    }}>
+      <div style={{
+        background: "#fff", borderRadius: 16, width: "100%", maxWidth: 600,
+        padding: 32, maxHeight: "90vh", overflow: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.3)"
+      }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
+          <h2 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>Edit Data {type === "balita" ? "Balita" : "Ibu Hamil"}</h2>
+          <button onClick={onClose} style={{ border: "none", background: "none", fontSize: 24, cursor: "pointer", color: "#9CA3AF" }}>✕</button>
+        </div>
+
+        <form onSubmit={handleSubmit}>
+          {type === "balita" ? (
+            <div style={{ display: "grid", gap: 16 }}>
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>NAMA BALITA</label>
+                <input style={inputStyle} value={balitaForm.nama} onChange={e => setBalitaForm({...balitaForm, nama: e.target.value})} required />
+              </div>
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>NAMA IBU</label>
+                <input style={inputStyle} value={balitaForm.namaIbu} onChange={e => setBalitaForm({...balitaForm, namaIbu: e.target.value})} />
+              </div>
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>TANGGAL LAHIR</label>
+                <input type="date" style={inputStyle} value={balitaForm.tanggalLahir} onChange={e => setBalitaForm({...balitaForm, tanggalLahir: e.target.value})} />
+              </div>
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>JENIS KELAMIN</label>
+                <select style={inputStyle} value={balitaForm.jenisKelamin} onChange={e => setBalitaForm({...balitaForm, jenisKelamin: e.target.value})}>
+                  <option value="L">Laki-laki (L)</option>
+                  <option value="P">Perempuan (P)</option>
+                </select>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>BERAT BADAN (KG)</label>
+                  <input type="number" step="0.1" style={inputStyle} value={balitaForm.beratBadan} onChange={e => setBalitaForm({...balitaForm, beratBadan: e.target.value})} />
+                </div>
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>TINGGI BADAN (CM)</label>
+                  <input type="number" step="0.1" style={inputStyle} value={balitaForm.tinggiBadan} onChange={e => setBalitaForm({...balitaForm, tinggiBadan: e.target.value})} />
+                </div>
+              </div>
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>STATUS GIZI</label>
+                <select style={inputStyle} value={balitaForm.statusGizi} onChange={e => setBalitaForm({...balitaForm, statusGizi: e.target.value})}>
+                  {statusGiziOptions.map(opt => (
+                    <option key={opt} value={opt}>{opt}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>STATUS STUNTING</label>
+                <select style={inputStyle} value={balitaForm.statusStunting} onChange={e => setBalitaForm({...balitaForm, statusStunting: e.target.value})}>
+                  {statusStuntingOptions.map(opt => (
+                    <option key={opt} value={opt}>{opt}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          ) : (
+            <div style={{ display: "grid", gap: 16 }}>
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>NAMA IBU HAMIL</label>
+                <input style={inputStyle} value={ibuForm.nama} onChange={e => setIbuForm({...ibuForm, nama: e.target.value})} required />
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>USIA IBU (TAHUN)</label>
+                  <input type="number" style={inputStyle} value={ibuForm.usia} onChange={e => setIbuForm({...ibuForm, usia: e.target.value})} />
+                </div>
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>USIA KEHAMILAN (MINGGU)</label>
+                  <input type="number" style={inputStyle} value={ibuForm.usiaKehamilan} onChange={e => setIbuForm({...ibuForm, usiaKehamilan: e.target.value})} />
+                </div>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>HPHT / TANGGAL LAHIR</label>
+                  <input type="date" style={inputStyle} value={ibuForm.hpht} onChange={e => setIbuForm({...ibuForm, hpht: e.target.value})} />
+                </div>
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>HPL (TAKDIR PERSALINAN)</label>
+                  <input type="date" style={inputStyle} value={ibuForm.taksirPersalinan} onChange={e => setIbuForm({...ibuForm, taksirPersalinan: e.target.value})} />
+                </div>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>TEKANAN DARAH</label>
+                  <input style={inputStyle} value={ibuForm.tekananDarah} onChange={e => setIbuForm({...ibuForm, tekananDarah: e.target.value})} placeholder="Misal: 120/80" />
+                </div>
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>BERAT BADAN (KG)</label>
+                  <input type="number" step="0.1" style={inputStyle} value={ibuForm.beratBadan} onChange={e => setIbuForm({...ibuForm, beratBadan: e.target.value})} />
+                </div>
+              </div>
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>RISIKO TINGGI</label>
+                <select style={inputStyle} value={ibuForm.risikoTinggi ? "true" : "false"} onChange={e => setIbuForm({...ibuForm, risikoTinggi: e.target.value === "true"})}>
+                  <option value="false">Tidak / Risiko Rendah</option>
+                  <option value="true">Ya (Risiko Tinggi)</option>
+                </select>
+              </div>
+            </div>
+          )}
+
+          {/* Buttons */}
+          <div style={{ display: "flex", gap: 12, marginTop: 24 }}>
+            <button type="button" onClick={onClose} disabled={loading} style={{
+              flex: 1, padding: "12px", borderRadius: 8, border: "1px solid #E5E7EB",
+              background: "#fff", cursor: loading ? "not-allowed" : "pointer", fontFamily: "inherit", fontWeight: 600,
+              transition: "all 0.2s ease", color: "#374151"
+            }}
+              onMouseOver={(e) => { if (!loading) e.target.style.background = "#F9FAFB"; }}
+              onMouseOut={(e) => { if (!loading) e.target.style.background = "#fff"; }}
+            >
+              Batal
+            </button>
+            <button type="submit" disabled={loading} style={{
+              flex: 1, padding: "12px", borderRadius: 8,
+              background: loading ? "#9CA3AF" : "linear-gradient(135deg, #16A34A 0%, #15803D 100%)",
+              color: "#fff", border: "none", cursor: loading ? "not-allowed" : "pointer", fontFamily: "inherit",
+              fontWeight: 600, transition: "all 0.3s ease", boxShadow: "0 4px 12px rgba(22, 163, 74, 0.25)"
+            }}
+              onMouseOver={(e) => {
+                if (!loading) {
+                  e.target.style.transform = "translateY(-2px)";
+                  e.target.style.boxShadow = "0 8px 20px rgba(22, 163, 74, 0.35)";
+                }
+              }}
+              onMouseOut={(e) => {
+                if (!loading) {
+                  e.target.style.transform = "translateY(0)";
+                  e.target.style.boxShadow = "0 4px 12px rgba(22, 163, 74, 0.25)";
+                }
+              }}
+            >
+              {loading ? "⏳ Menyimpan..." : "✓ Simpan"}
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );

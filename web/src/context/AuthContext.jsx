@@ -168,12 +168,18 @@ export function AuthProvider({ children }) {
     }
   }, []);
 
+  const updateCurrentUser = useCallback((updatedUser) => {
+    setUser(updatedUser);
+    localStorage.setItem("user", JSON.stringify(updatedUser));
+  }, []);
+
   const value = {
     user,
     loading,
     login,
     register,
     logout,
+    updateCurrentUser,
     isAuthenticated: !!user
   };
 

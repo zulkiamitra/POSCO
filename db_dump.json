@@ -164,7 +164,7 @@
       "id": "cmq95qi300004ng9sm8lhpgmf",
       "name": "Nanda",
       "motherName": "Ucok",
-      "birthDate": "2025-10-06T17:00:00.000Z",
+      "birthDate": "2025-10-05T17:00:00.000Z",
       "gender": "Laki-laki",
       "birthWeight": null,
       "height": 120,
@@ -194,18 +194,18 @@
       "posyanduId": null,
       "orangtuaId": "a0a18ebd-3f1f-465d-8d4f-0e2181290b4e",
       "createdAt": "2026-06-11T07:09:41.005Z",
-      "updatedAt": "2026-06-11T07:14:17.999Z"
+      "updatedAt": "2026-06-17T14:25:18.383Z"
     },
     {
       "id": "cmq96uywx0000n8ch8fr1kvyf",
       "name": "Ronaldo",
       "motherName": "Kaka",
-      "birthDate": "2026-05-13T17:00:00.000Z",
+      "birthDate": "2026-05-13T00:00:00.000Z",
       "gender": "Perempuan",
       "birthWeight": 0,
       "height": 198,
       "weight": 90,
-      "nutritionStatus": "Normal",
+      "nutritionStatus": "Stunting",
       "stuntingStatus": "Normal",
       "immunization": {
         "bcg": false,
@@ -217,26 +217,50 @@
       },
       "checkupHistory": [
         {
+          "bb": 90,
+          "tb": 198,
           "arm": "66 cm",
           "date": "11 Juni 2026",
           "note": "Meningkat nih",
           "height": "198 cm",
           "status": "Normal",
+          "tempat": "Posyandu Melati - Kec. Padang Timur",
           "weight": "90 kg",
+          "catatan": "Meningkat nih",
+          "layanan": [
+            "+ VITAMIN A",
+            "+ OBAT CACING"
+          ],
+          "tanggal": "2026-06-11",
           "location": "Posyandu Melati - Kec. Padang Timur",
           "services": [
             "+ VITAMIN A",
             "+ OBAT CACING"
           ],
+          "statusGizi": "Normal",
+          "lingkarKepala": 44,
+          "lingkarLengan": 66,
           "headCircumference": "44 cm"
         },
         {
+          "bb": 77,
+          "tb": 176,
           "arm": "24 cm",
           "date": "11 Juni 2026",
           "note": "menurun",
           "height": "176 cm",
           "status": "Normal",
+          "tempat": "Posyandu Melati - Kec. Padang Timur",
           "weight": "77 kg",
+          "catatan": "menurun",
+          "layanan": [
+            "+ VITAMIN A",
+            "+ ZAT BESI",
+            "+ VITAMIN D",
+            "+ KALSIUM",
+            "+ OBAT CACING"
+          ],
+          "tanggal": "2026-06-11",
           "location": "Posyandu Melati - Kec. Padang Timur",
           "services": [
             "+ VITAMIN A",
@@ -245,13 +269,16 @@
             "+ KALSIUM",
             "+ OBAT CACING"
           ],
+          "statusGizi": "Normal",
+          "lingkarKepala": 55,
+          "lingkarLengan": 24,
           "headCircumference": "55 cm"
         }
       ],
-      "posyanduId": null,
+      "posyanduId": "cmqevqgcm0000s7azfek6rawy",
       "orangtuaId": null,
       "createdAt": "2026-06-11T07:41:09.058Z",
-      "updatedAt": "2026-06-11T07:45:26.770Z"
+      "updatedAt": "2026-06-21T16:45:13.216Z"
     }
   ],
   "sessions": [

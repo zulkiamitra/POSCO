@@ -7,7 +7,7 @@ import { api } from "../utils/api";
 import { jsPDF } from "jspdf";
 
 export default function OrangtuaDashboard() {
-  const { user, logout } = useAuth();
+  const { user, logout, updateCurrentUser } = useAuth();
   const navigate = useNavigate();
   const { success, error: errorNotify } = useNotification();
   const [activeMenu, setActiveMenu] = useState("home");
@@ -27,6 +27,16 @@ export default function OrangtuaDashboard() {
   const [ibuHamilState, setIbuHamilState] = useState([]);
   const [jadwalSesiState, setJadwalSesiState] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [newProfileName, setNewProfileName] = useState(user?.name || "");
+  const [updatingProfile, setUpdatingProfile] = useState(false);
+
+  useEffect(() => {
+    if (user?.name) {
+      setNewProfileName(user.name);
+    }
+  }, [user]);
 
   const loadOrangtuaData = useCallback(async () => {
     if (!user?.id) return;
@@ -1023,17 +1033,21 @@ export default function OrangtuaDashboard() {
                     </label>
                     <input
                       type="text"
-                      value={user?.name || ""}
-                      disabled
+                      value={isEditingProfile ? newProfileName : (user?.name || "")}
+                      disabled={!isEditingProfile || updatingProfile}
+                      onChange={(e) => setNewProfileName(e.target.value)}
                       style={{
                         width: "100%",
                         padding: "10px 12px",
                         borderRadius: 4,
-                        border: "1px solid #E5E7EB",
+                        border: isEditingProfile ? "1.5px solid #16A34A" : "1px solid #E5E7EB",
                         fontSize: 14,
                         background: "white",
-                        color: "#111827"
+                        color: "#111827",
+                        outline: "none",
+                        transition: "all 0.3s ease"
                       }}
+                      placeholder="Masukkan nama Anda"
                     />
                   </div>
                   <div style={{ marginBottom: 20 }}>
@@ -1050,8 +1064,8 @@ export default function OrangtuaDashboard() {
                         borderRadius: 4,
                         border: "1px solid #E5E7EB",
                         fontSize: 14,
-                        background: "white",
-                        color: "#111827"
+                        background: "#F3F4F6",
+                        color: "#6B7280"
                       }}
                     />
                   </div>
@@ -1069,12 +1083,12 @@ export default function OrangtuaDashboard() {
                         borderRadius: 4,
                         border: "1px solid #E5E7EB",
                         fontSize: 14,
-                        background: "white",
-                        color: "#111827"
+                        background: "#F3F4F6",
+                        color: "#6B7280"
                       }}
                     />
                   </div>
-                  <div>
+                  <div style={{ marginBottom: 24 }}>
                     <label style={{ fontSize: 12, color: "#6B7280", fontWeight: 600, display: "block", marginBottom: 6 }}>
                       ROLE
                     </label>
@@ -1088,10 +1102,118 @@ export default function OrangtuaDashboard() {
                         borderRadius: 4,
                         border: "1px solid #E5E7EB",
                         fontSize: 14,
-                        background: "white",
-                        color: "#111827"
+                        background: "#F3F4F6",
+                        color: "#6B7280"
                       }}
                     />
+                  </div>
+                  
+                  {/* Action Buttons for Profile Editing */}
+                  <div style={{ display: "flex", gap: 12, marginTop: 24 }}>
+                    {!isEditingProfile ? (
+                      <button
+                        onClick={() => {
+                          setNewProfileName(user?.name || "");
+                          setIsEditingProfile(true);
+                        }}
+                        style={{
+                          padding: "10px 24px",
+                          borderRadius: 8,
+                          background: "linear-gradient(135deg, #16A34A 0%, #15803D 100%)",
+                          color: "#fff",
+                          border: "none",
+                          fontWeight: 600,
+                          cursor: "pointer",
+                          transition: "all 0.3s ease",
+                          boxShadow: "0 4px 12px rgba(22, 163, 74, 0.2)"
+                        }}
+                        onMouseOver={(e) => {
+                          e.target.style.transform = "translateY(-1px)";
+                          e.target.style.boxShadow = "0 6px 16px rgba(22, 163, 74, 0.3)";
+                        }}
+                        onMouseOut={(e) => {
+                          e.target.style.transform = "translateY(0)";
+                          e.target.style.boxShadow = "0 4px 12px rgba(22, 163, 74, 0.2)";
+                        }}
+                      >
+                        📝 Edit Profil
+                      </button>
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsEditingProfile(false);
+                            setNewProfileName(user?.name || "");
+                          }}
+                          disabled={updatingProfile}
+                          style={{
+                            padding: "10px 20px",
+                            borderRadius: 8,
+                            border: "1px solid #D1D5DB",
+                            background: "#fff",
+                            color: "#374151",
+                            fontWeight: 600,
+                            cursor: updatingProfile ? "not-allowed" : "pointer",
+                            transition: "all 0.2s ease"
+                          }}
+                          onMouseOver={(e) => { if (!updatingProfile) e.target.style.background = "#F9FAFB"; }}
+                          onMouseOut={(e) => { if (!updatingProfile) e.target.style.background = "#fff"; }}
+                        >
+                          Batal
+                        </button>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            if (!newProfileName.trim()) {
+                              errorNotify("⚠️ Nama tidak boleh kosong!");
+                              return;
+                            }
+                            setUpdatingProfile(true);
+                            try {
+                              const updatedUser = await api.updateUser(user.id, {
+                                ...user,
+                                name: newProfileName
+                              });
+                              updateCurrentUser(updatedUser);
+                              success("✅ Profil berhasil diperbarui!");
+                              setIsEditingProfile(false);
+                            } catch (err) {
+                              console.error(err);
+                              errorNotify("⚠️ Gagal memperbarui profil: " + err.message);
+                            } finally {
+                              setUpdatingProfile(false);
+                            }
+                          }}
+                          disabled={updatingProfile}
+                          style={{
+                            padding: "10px 24px",
+                            borderRadius: 8,
+                            background: updatingProfile ? "#9CA3AF" : "linear-gradient(135deg, #16A34A 0%, #15803D 100%)",
+                            color: "#fff",
+                            border: "none",
+                            fontWeight: 600,
+                            cursor: updatingProfile ? "not-allowed" : "pointer",
+                            transition: "all 0.3s ease",
+                            boxShadow: "0 4px 12px rgba(22, 163, 74, 0.2)"
+                          }}
+                          onMouseOver={(e) => {
+                            if (!updatingProfile) {
+                              e.target.style.transform = "translateY(-1px)";
+                              e.target.style.boxShadow = "0 6px 16px rgba(22, 163, 74, 0.3)";
+                            }
+                          }}
+                          onMouseOut={(e) => {
+                            if (!updatingProfile) {
+                              e.target.style.transform = "translateY(0)";
+                              e.target.style.boxShadow = "0 4px 12px rgba(22, 163, 74, 0.2)";
+                            }
+                          }}
+                        >
+                          {updatingProfile ? "⏳ Menyimpan..." : "✓ Simpan"}
+                        </button>
+                      </>
+                    )}
                   </div>
                 </div>
               </div>
