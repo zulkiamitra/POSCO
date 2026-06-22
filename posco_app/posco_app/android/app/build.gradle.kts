@@ -11,12 +11,6 @@ android {
     buildToolsVersion = "36.1.0"
     // ndkVersion = flutter.ndkVersion
 
-    externalNativeBuild {
-        cmake {
-            version = "4.1.2"
-        }
-    }
-
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
