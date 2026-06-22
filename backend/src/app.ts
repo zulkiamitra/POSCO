@@ -22,12 +22,13 @@ export const createApp = () => {
         }
 
         const isAllowedLocalhost = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
-        if (origin === env.corsOrigin || isAllowedLocalhost) {
+        const isVercelDomain = origin.endsWith(".vercel.app");
+        
+        if (origin === env.corsOrigin || isAllowedLocalhost || isVercelDomain) {
           callback(null, true);
-          return;
+        } else {
+          callback(null, false);
         }
-
-        callback(new Error(`CORS blocked for origin: ${origin}`));
       },
       credentials: true,
     })
