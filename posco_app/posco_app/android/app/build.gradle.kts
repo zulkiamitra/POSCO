@@ -8,6 +8,7 @@ plugins {
 android {
     namespace = "com.example.posco_app"
     compileSdk = flutter.compileSdkVersion
+    buildToolsVersion = "36.1.0"
     // ndkVersion = flutter.ndkVersion
 
     compileOptions {
